@@ -16,11 +16,13 @@
     overflow: hidden;
   }
   canvas {
-    background: linear-gradient(to bottom, #87CEEB 0%, #B0E0E6 55%, #E8D5A3 55%, #C4A35A 100%);
+    background: linear-gradient(to bottom, #87CEEB 0%, #E0F0FF 55%, #E8D5A3 55%, #D2B48C 100%);
     border: 4px solid #333;
     border-radius: 8px;
     max-width: 95vw;
     max-height: 90vh;
+    image-rendering: pixelated;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
   }
 </style>
 </head>
@@ -37,7 +39,7 @@ const GRAVITY = 0.65;
 const JUMP_V = -13.5;
 const PLAYER_X = 130;
 
-let state = 'start';
+let state = 'start'; // start, playing, over
 let score = 0;
 let highScore = parseInt(localStorage.getItem('chromodorHigh') || '0');
 let frame = 0;
@@ -76,13 +78,13 @@ function jump() {
   if (player.grounded) {
     player.vy = JUMP_V;
     player.grounded = false;
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 8; i++) {
       particles.push({
         x: player.x + (Math.random()-0.5)*10,
         y: GROUND,
         vx: (Math.random()-0.5)*4,
         vy: -Math.random()*3 - 1,
-        life: 18 + Math.random()*12
+        life: 25 + Math.random()*15
       });
     }
   }
@@ -114,7 +116,7 @@ function spawnBull() {
 function update() {
   if (state !== 'playing') return;
   frame++;
-  score = Math.floor(frame / 6);
+  score = Math.floor(frame / 4);
   speed = 6 + Math.min(score * 0.012, 8);
 
   player.vy += GRAVITY;
@@ -122,17 +124,6 @@ function update() {
   if (player.y >= GROUND) {
     player.y = GROUND;
     player.vy = 0;
-    if (!player.grounded) {
-      for (let i = 0; i < 4; i++) {
-        particles.push({
-          x: player.x + (Math.random()-0.5)*12,
-          y: GROUND,
-          vx: (Math.random()-0.5)*2,
-          vy: -Math.random()*1.5,
-          life: 12
-        });
-      }
-    }
     player.grounded = true;
   } else {
     player.grounded = false;
@@ -141,7 +132,7 @@ function update() {
   spawnTimer--;
   if (spawnTimer <= 0) {
     spawnBull();
-    const interval = Math.max(50, 120 - score * 0.25) + Math.random() * 40;
+    const interval = Math.max(40, 105 - score * 0.25) + Math.random() * 35;
     spawnTimer = interval;
   }
 
@@ -152,13 +143,14 @@ function update() {
       bulls.splice(i, 1);
       continue;
     }
+    // tighter hitboxes
     const px = player.x - 7;
     const py = player.y - player.h + 5;
     const pw = 14;
     const ph = player.h - 10;
-    const bx = b.x - b.w * 0.45;
+    const bx = b.x - b.w * 0.35;
     const by = b.y - b.h + 5;
-    const bw = b.w * 0.7;
+    const bw = b.w * 0.65;
     const bh = b.h * 0.85;
     if (px < bx + bw && px + pw > bx && py < by + bh && py + ph > by) {
       state = 'over';
@@ -173,7 +165,7 @@ function update() {
     const p = particles[i];
     p.x += p.vx;
     p.y += p.vy;
-    p.vy += 0.12;
+    p.vy += 0.2;
     p.life--;
     if (p.life <= 0) particles.splice(i, 1);
   }
@@ -182,21 +174,29 @@ function update() {
 function drawGround() {
   ctx.fillStyle = '#C4A35A';
   ctx.fillRect(0, GROUND, W, H - GROUND);
-  ctx.strokeStyle = '#8B6914';
-  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#8B7355';
+  ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(0, GROUND);
   ctx.lineTo(W, GROUND);
   ctx.stroke();
-  ctx.strokeStyle = '#A08040';
+  // scrolling marks
+  ctx.strokeStyle = '#A08050';
   ctx.lineWidth = 2;
-  ctx.setLineDash([20, 30]);
-  ctx.lineDashOffset = -(frame * speed * 0.7) % 50;
+  ctx.setLineDash([18, 22]);
+  ctx.lineDashOffset = -(frame * speed * 0.7) % 40;
   ctx.beginPath();
   ctx.moveTo(0, GROUND + 15);
   ctx.lineTo(W, GROUND + 15);
   ctx.stroke();
   ctx.setLineDash([]);
+  // simple distant fence posts
+  ctx.fillStyle = 'rgba(100,70,40,0.4)';
+  for (let i = 0; i < 12; i++) {
+    const fx = ((i * 90 - frame * speed * 0.15) % (W + 90)) - 20;
+    ctx.fillRect(fx, GROUND - 45, 6, 45);
+    ctx.fillRect(fx - 8, GROUND - 45, 22, 4);
+  }
 }
 
 function drawShadow(x, y, w) {
@@ -210,57 +210,48 @@ function drawMatador() {
   const x = player.x;
   const y = player.y;
   const jumping = !player.grounded;
-
-  drawShadow(x, GROUND, 28);
-
-  // cape
+  drawShadow(x, GROUND, 30);
+  // cape (behind / left)
   ctx.fillStyle = '#C41E3A';
   ctx.beginPath();
-  const wave = Math.sin(frame * 0.22) * (jumping ? 10 : 6);
-  ctx.moveTo(x - 4, y - 40);
+  const wave = Math.sin(frame * 0.28) * (jumping ? 10 : 6);
+  ctx.moveTo(x - 5, y - 40);
   ctx.quadraticCurveTo(x - 32 + wave, y - 28, x - 22, y - 4);
   ctx.lineTo(x + 10, y - 6);
-  ctx.quadraticCurveTo(x - 2 + wave * 0.5, y - 24, x + 6, y - 40);
+  ctx.quadraticCurveTo(x - 2, y - 24, x + 6, y - 40);
   ctx.closePath();
   ctx.fill();
-
   // legs
-  ctx.strokeStyle = '#111';
+  ctx.strokeStyle = '#1a1a1a';
   ctx.lineWidth = 4;
   ctx.lineCap = 'round';
-  const legSwing = jumping ? 0 : Math.sin(frame * 0.35) * 8;
+  const legSwing = jumping ? 0 : Math.sin(frame * 0.38) * 8;
   ctx.beginPath();
-  ctx.moveTo(x - 5, y - 20);
+  ctx.moveTo(x - 5, y - 18);
   ctx.lineTo(x - 9 - legSwing, y);
-  ctx.moveTo(x + 5, y - 20);
+  ctx.moveTo(x + 5, y - 18);
   ctx.lineTo(x + 9 + legSwing, y);
   ctx.stroke();
-
   // torso
-  ctx.fillStyle = '#111';
-  ctx.fillRect(x - 10, y - 44, 20, 28);
-
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(x - 9, y - 42, 18, 26);
   // head
   ctx.beginPath();
-  ctx.arc(x, y - 54, 10, 0, Math.PI * 2);
+  ctx.arc(x, y - 52, 9, 0, Math.PI * 2);
   ctx.fill();
-
   // montera hat
-  ctx.fillStyle = '#222';
+  ctx.fillStyle = '#111';
+  ctx.fillRect(x - 12, y - 62, 24, 6);
   ctx.beginPath();
-  ctx.ellipse(x, y - 62, 14, 6, 0, 0, Math.PI * 2);
+  ctx.moveTo(x - 9, y - 62);
+  ctx.lineTo(x, y - 74);
+  ctx.lineTo(x + 9, y - 62);
   ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(x - 6, y - 64);
-  ctx.lineTo(x, y - 78);
-  ctx.lineTo(x + 6, y - 64);
-  ctx.fill();
-
-  // arm
-  ctx.strokeStyle = '#111';
+  // arm holding cape / muleta
+  ctx.strokeStyle = '#1a1a1a';
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(x + 9, y - 36);
+  ctx.moveTo(x + 8, y - 36);
   ctx.lineTo(x + 20, y - 22);
   ctx.stroke();
 }
@@ -270,62 +261,54 @@ function drawBull(b) {
   const y = b.y;
   const w = b.w;
   const h = b.h;
-  const bodyY = y - h * 0.38;
-
+  const bodyY = y - h * 0.4;
   drawShadow(x, GROUND, w * 0.8);
-
   // body
   ctx.fillStyle = '#1a1a1a';
   ctx.beginPath();
-  ctx.ellipse(x, bodyY, w * 0.48, h * 0.3, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, bodyY, w * 0.5, h * 0.32, 0, 0, Math.PI * 2);
   ctx.fill();
-
-  // head LEFT (charging toward player)
+  // head (LEFT side - facing left toward matador)
   ctx.beginPath();
-  ctx.ellipse(x - w * 0.4, bodyY - 3, w * 0.26, h * 0.26, -0.15, 0, Math.PI * 2);
+  ctx.ellipse(x - w * 0.42, bodyY - 2, w * 0.26, h * 0.26, -0.2, 0, Math.PI * 2);
   ctx.fill();
-
   // horns
   ctx.fillStyle = '#E8E0D0';
   ctx.beginPath();
-  ctx.moveTo(x - w * 0.48, bodyY - h * 0.2);
-  ctx.lineTo(x - w * 0.72, bodyY - h * 0.48);
-  ctx.lineTo(x - w * 0.52, bodyY - h * 0.15);
+  ctx.moveTo(x - w * 0.5, bodyY - h * 0.2);
+  ctx.lineTo(x - w * 0.75, bodyY - h * 0.52);
+  ctx.lineTo(x - w * 0.58, bodyY - h * 0.15);
   ctx.fill();
   ctx.beginPath();
-  ctx.moveTo(x - w * 0.55, bodyY - h * 0.28);
-  ctx.lineTo(x - w * 0.82, bodyY - h * 0.42);
-  ctx.lineTo(x - w * 0.58, bodyY - h * 0.2);
+  ctx.moveTo(x - w * 0.55, bodyY - h * 0.26);
+  ctx.lineTo(x - w * 0.82, bodyY - h * 0.48);
+  ctx.lineTo(x - w * 0.63, bodyY - h * 0.2);
   ctx.fill();
-
   // legs
   ctx.strokeStyle = '#1a1a1a';
   ctx.lineWidth = 3.5;
   ctx.lineCap = 'round';
-  const phase = frame * 0.45 + x * 0.008;
-  const legs = [[-0.3, 0], [-0.1, Math.PI], [0.1, 0.6], [0.3, Math.PI + 0.6]];
+  const phase = frame * 0.42 + x * 0.01;
+  const legs = [[-0.3, 0], [-0.1, Math.PI], [0.12, 0.8], [0.32, Math.PI + 0.8]];
   legs.forEach(([ox, p]) => {
     const swing = Math.sin(phase + p) * 10;
     ctx.beginPath();
-    ctx.moveTo(x + w * ox, bodyY + h * 0.12);
-    ctx.lineTo(x + w * ox + swing * 0.5, y);
+    ctx.moveTo(x + w * ox, bodyY + h * 0.15);
+    ctx.lineTo(x + w * ox + swing * 0.55, y);
     ctx.stroke();
   });
-
   // eye
   ctx.fillStyle = '#ff2222';
   ctx.beginPath();
-  ctx.arc(x - w * 0.5, bodyY - 6, 2.8, 0, Math.PI * 2);
+  ctx.arc(x - w * 0.52, bodyY - 6, 2.8, 0, Math.PI * 2);
   ctx.fill();
-}
-
-function drawParticles() {
-  particles.forEach(p => {
-    ctx.fillStyle = `rgba(160,120,60,${Math.max(0, p.life / 25)}`);
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
-    ctx.fill();
-  });
+  // tail
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.45, bodyY + 2);
+  ctx.quadraticCurveTo(x + w * 0.75, bodyY - 18, x + w * 0.65, bodyY + 8);
+  ctx.stroke();
 }
 
 function drawUI() {
@@ -340,36 +323,45 @@ function drawUI() {
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 46px system-ui';
+    ctx.font = 'bold 52px system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText('Chromodor', W / 2, H / 2 - 55);
+    ctx.fillText('Chromodor', W/2, H/2 - 55);
     ctx.font = '22px system-ui';
-    ctx.fillText('Dodge the charging bulls!', W / 2, H / 2 - 5);
+    ctx.fillText('A matador dodging charging bulls', W/2, H/2 - 5);
     ctx.font = '18px system-ui';
-    ctx.fillText('SPACE / Click / Tap  to start & jump', W / 2, H / 2 + 45);
-    ctx.fillStyle = '#C41E3A';
-    ctx.font = 'bold 24px system-ui';
-    ctx.fillText('\u00a1Ol\u00e9!', W / 2, H / 2 + 90);
+    ctx.fillText('Press SPACE / Click / Tap to start & jump', W/2, H/2 + 45);
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 28px system-ui';
+    ctx.fillText('\u00a1Ol\u00e9!', W/2, H/2 + 95);
   }
 
   if (state === 'over') {
     ctx.fillStyle = 'rgba(0,0,0,0.65)';
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 44px system-ui';
+    ctx.font = 'bold 46px system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText('\u00a1Ay!', W / 2, H / 2 - 50);
+    ctx.fillText('\u00a1Ay!', W/2, H/2 - 50);
     ctx.font = '26px system-ui';
-    ctx.fillText('Score: ' + score, W / 2, H / 2 + 5);
+    ctx.fillText('Score: ' + score, W/2, H/2 + 5);
     if (score >= highScore && score > 0) {
       ctx.fillStyle = '#FFD700';
       ctx.font = 'bold 22px system-ui';
-      ctx.fillText('\u2605 New High Score! \u2605', W / 2, H / 2 + 45);
+      ctx.fillText('New High Score!', W/2, H/2 + 45);
     }
     ctx.fillStyle = '#fff';
     ctx.font = '18px system-ui';
-    ctx.fillText('SPACE / Click to try again', W / 2, H / 2 + 90);
+    ctx.fillText('Press SPACE / Click to restart', W/2, H/2 + 90);
   }
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.fillStyle = `rgba(160,120,60,${Math.max(0, p.life/35)})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 2.5 + (30-p.life)/15, 0, Math.PI*2);
+    ctx.fill();
+  });
 }
 
 function loop() {
