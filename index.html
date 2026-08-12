@@ -90,7 +90,6 @@ function jump() {
     player.vy = JUMP_V * (isSecond ? 0.88 : 1);
     player.jumpsLeft--;
     player.grounded = false;
-    // dust / air particles
     for (let i = 0; i < (isSecond ? 5 : 8); i++) {
       particles.push({
         x: player.x + (Math.random()-0.5)*12,
@@ -143,7 +142,6 @@ function update() {
   score = Math.floor(frame / 4);
   speed = 6 + Math.min(score * 0.012, 8);
 
-  // player physics
   player.vy += GRAVITY;
   player.y += player.vy;
   if (player.y >= GROUND) {
@@ -156,7 +154,6 @@ function update() {
   }
   if (player.capeSwing > 0) player.capeSwing--;
 
-  // spawn bulls
   spawnTimer--;
   if (spawnTimer <= 0) {
     spawnBull();
@@ -164,14 +161,12 @@ function update() {
     spawnTimer = interval;
   }
 
-  // spawn eagles (less frequent)
   eagleTimer--;
   if (eagleTimer <= 0) {
     spawnEagle();
     eagleTimer = 160 + Math.random() * 180 - Math.min(score * 0.4, 60);
   }
 
-  // bulls
   for (let i = bulls.length - 1; i >= 0; i--) {
     const b = bulls[i];
     b.x -= b.speed;
@@ -180,24 +175,19 @@ function update() {
       continue;
     }
 
-    // player hitbox
     const px = player.x - 8;
     const py = player.y - player.h + 6;
     const pw = 16;
     const ph = player.h - 12;
 
-    // bull hitbox
     const bx = b.x - b.w * 0.38;
     const by = b.y - b.h + 10;
     const bw = b.w * 0.72;
     const bh = b.h * 0.82;
 
-    // DODGE check (near-miss while airborne)
     const dx = (b.x - b.w * 0.2) - player.x;
     if (!player.grounded && !b.dodged && dx > -15 && dx < 70) {
-      // vertical clearance: player is above the bull enough
       if (py + ph < by + 18) {
-        // successful near-miss dodge!
         b.dodged = true;
         const bonus = 75 + Math.floor(Math.random() * 40);
         score += bonus;
@@ -209,7 +199,6 @@ function update() {
           life: 50,
           color: '#FFD700'
         });
-        // extra particles
         for (let k = 0; k < 10; k++) {
           particles.push({
             x: player.x,
@@ -222,9 +211,7 @@ function update() {
       }
     }
 
-    // fatal collision (if not successfully dodged or still overlapping badly)
     if (px < bx + bw && px + pw > bx && py < by + bh && py + ph > by) {
-      // only die if not in the successful dodge window or deeper overlap
       if (!b.dodged || (px + pw > bx + 25)) {
         state = 'over';
         if (score > highScore) {
@@ -235,7 +222,6 @@ function update() {
     }
   }
 
-  // eagles
   for (let i = eagles.length - 1; i >= 0; i--) {
     const e = eagles[i];
     e.x -= e.speed;
@@ -260,7 +246,6 @@ function update() {
     }
   }
 
-  // particles
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.x += p.vx;
@@ -270,7 +255,6 @@ function update() {
     if (p.life <= 0) particles.splice(i, 1);
   }
 
-  // floating texts
   for (let i = floatTexts.length - 1; i >= 0; i--) {
     const t = floatTexts[i];
     t.y -= 1.2;
@@ -317,75 +301,102 @@ function drawMatador() {
   const y = player.y;
   const jumping = !player.grounded;
   const swing = player.capeSwing > 0;
-  drawShadow(x, GROUND, 38);
+  drawShadow(x, GROUND, 40);
 
-  // Dramatic cape (even more when swinging for OLE)
+  // === LARGE RED CAPE matching the logo (big curved billowing shape from raised arm) ===
   ctx.fillStyle = '#C41E3A';
   ctx.beginPath();
-  const wave = Math.sin(frame * 0.22) * (jumping ? 14 : 9) + (swing ? Math.sin(frame * 0.5) * 18 : 0);
-  const capeExtend = swing ? 25 : 0;
-  ctx.moveTo(x + 8, y - 52);
-  ctx.quadraticCurveTo(x - 8 + wave * 0.4, y - 75 - (swing ? 15 : 0), x - 52 - capeExtend + wave, y - 48);
-  ctx.quadraticCurveTo(x - 70 - capeExtend + wave * 0.9, y - 12, x - 42 - capeExtend + wave * 0.5, y + 10);
-  ctx.quadraticCurveTo(x - 12, y - 2, x + 12, y - 14);
-  ctx.lineTo(x + 10, y - 38);
-  ctx.quadraticCurveTo(x + 6, y - 50, x + 8, y - 52);
+  const wave = Math.sin(frame * 0.2) * (jumping ? 10 : 6) + (swing ? Math.sin(frame * 0.45) * 20 : 0);
+  const raise = swing ? 12 : 0;
+  // Cape starts from raised hand and sweeps in a big arc to the left (logo style)
+  ctx.moveTo(x + 4, y - 78 - raise); // near raised hand
+  ctx.quadraticCurveTo(x - 30 + wave * 0.5, y - 95 - raise, x - 70 + wave, y - 55); // high left peak
+  ctx.quadraticCurveTo(x - 95 + wave * 1.1, y - 10, x - 55 + wave * 0.6, y + 15); // bottom sweep
+  ctx.quadraticCurveTo(x - 15, y + 5, x + 8, y - 25); // back toward body
+  ctx.lineTo(x + 6, y - 55);
+  ctx.quadraticCurveTo(x + 2, y - 70, x + 4, y - 78 - raise);
   ctx.closePath();
   ctx.fill();
 
-  // Legs
-  ctx.strokeStyle = '#111';
-  ctx.lineWidth = 5.5;
-  ctx.lineCap = 'round';
-  const legSwing = jumping ? 0 : Math.sin(frame * 0.4) * 11;
-  ctx.beginPath();
-  ctx.moveTo(x - 6, y - 24);
-  ctx.lineTo(x - 14 - legSwing, y);
-  ctx.moveTo(x + 7, y - 24);
-  ctx.lineTo(x + 15 + legSwing * 0.75, y);
-  ctx.stroke();
+  // === BLACK SILHOUETTE BODY (logo style upright pose) ===
+  ctx.fillStyle = '#0a0a0a';
 
-  // Body
-  ctx.fillStyle = '#111';
+  // Legs with subtle run
+  const legSwing = jumping ? 0 : Math.sin(frame * 0.38) * 8;
+  // Back leg
   ctx.beginPath();
-  ctx.moveTo(x - 12, y - 52);
-  ctx.lineTo(x + 13, y - 52);
-  ctx.lineTo(x + 12, y - 22);
-  ctx.lineTo(x - 10, y - 22);
+  ctx.moveTo(x - 6, y - 28);
+  ctx.lineTo(x - 14 - legSwing * 0.7, y);
+  ctx.lineTo(x - 4 - legSwing * 0.5, y);
+  ctx.lineTo(x + 2, y - 28);
+  ctx.closePath();
+  ctx.fill();
+  // Front leg
+  ctx.beginPath();
+  ctx.moveTo(x + 2, y - 28);
+  ctx.lineTo(x + 10 + legSwing, y);
+  ctx.lineTo(x + 18 + legSwing * 0.6, y);
+  ctx.lineTo(x + 10, y - 28);
+  ctx.closePath();
+  ctx.fill();
+
+  // Torso (lean elegant silhouette)
+  ctx.beginPath();
+  ctx.moveTo(x - 11, y - 30);
+  ctx.lineTo(x - 13, y - 62);
+  ctx.lineTo(x + 12, y - 62);
+  ctx.lineTo(x + 11, y - 30);
+  ctx.closePath();
+  ctx.fill();
+
+  // Raised arm (logo style - high)
+  ctx.beginPath();
+  ctx.moveTo(x + 6, y - 58);
+  ctx.lineTo(x + 8, y - 82 - raise);
+  ctx.lineTo(x + 18, y - 80 - raise);
+  ctx.lineTo(x + 14, y - 55);
+  ctx.closePath();
+  ctx.fill();
+  // Fist
+  ctx.beginPath();
+  ctx.arc(x + 13, y - 84 - raise, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Other arm (holding lower cape / sword side)
+  ctx.beginPath();
+  ctx.moveTo(x - 8, y - 52);
+  ctx.lineTo(x - 22, y - 38);
+  ctx.lineTo(x - 16, y - 32);
+  ctx.lineTo(x - 4, y - 48);
   ctx.closePath();
   ctx.fill();
 
   // Head
   ctx.beginPath();
-  ctx.arc(x + 2, y - 62, 12, 0, Math.PI * 2);
+  ctx.arc(x + 1, y - 72, 11, 0, Math.PI * 2);
   ctx.fill();
 
-  // Montera hat
-  ctx.fillStyle = '#0a0a0a';
+  // Classic montera / hat (logo style)
   ctx.beginPath();
-  ctx.ellipse(x + 2, y - 73, 16, 9, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + 1, y - 84, 15, 7, 0, 0, Math.PI * 2);
   ctx.fill();
+  // Top of hat
   ctx.beginPath();
-  ctx.moveTo(x - 9, y - 75);
-  ctx.quadraticCurveTo(x + 2, y - 96, x + 13, y - 75);
+  ctx.moveTo(x - 10, y - 86);
+  ctx.quadraticCurveTo(x + 1, y - 105, x + 12, y - 86);
   ctx.fill();
 
-  // Arms (more dramatic swing when dodging)
-  ctx.strokeStyle = '#111';
-  ctx.lineWidth = 5;
-  ctx.lineCap = 'round';
-  const armExtra = swing ? 12 : 0;
+  // Sword suggestion at hip (logo detail)
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(x + 11, y - 48);
-  ctx.lineTo(x + 28 + armExtra, y - 34 + Math.sin(frame * 0.18) * 3 - (swing ? 8 : 0));
+  ctx.moveTo(x + 10, y - 35);
+  ctx.lineTo(x + 22, y - 18);
   ctx.stroke();
+  // hilt
   ctx.beginPath();
-  ctx.arc(x + 28 + armExtra, y - 34 - (swing ? 8 : 0), 4.5, 0, Math.PI * 2);
+  ctx.arc(x + 11, y - 36, 3, 0, Math.PI * 2);
   ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(x - 7, y - 46);
-  ctx.lineTo(x - 18 - (swing ? 10 : 0), y - 32);
-  ctx.stroke();
 }
 
 function drawBull(b) {
@@ -399,27 +410,22 @@ function drawBull(b) {
 
   ctx.fillStyle = '#C41E3A';
 
-  // Main body
   ctx.beginPath();
   ctx.ellipse(x, bodyY, w * 0.48, h * 0.34, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Thick neck
   ctx.beginPath();
   ctx.ellipse(x - w * 0.28, bodyY - h * 0.05, w * 0.28, h * 0.28, -0.3, 0, Math.PI * 2);
   ctx.fill();
 
-  // Head
   ctx.beginPath();
   ctx.ellipse(x - w * 0.52, bodyY - h * 0.08, w * 0.24, h * 0.22, -0.15, 0, Math.PI * 2);
   ctx.fill();
 
-  // Snout
   ctx.beginPath();
   ctx.ellipse(x - w * 0.68, bodyY - h * 0.02, w * 0.14, h * 0.12, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Horns
   ctx.beginPath();
   ctx.moveTo(x - w * 0.48, bodyY - h * 0.22);
   ctx.quadraticCurveTo(x - w * 0.55, bodyY - h * 0.55, x - w * 0.35, bodyY - h * 0.65);
@@ -431,7 +437,6 @@ function drawBull(b) {
   ctx.quadraticCurveTo(x - w * 0.62, bodyY - h * 0.38, x - w * 0.55, bodyY - h * 0.25);
   ctx.fill();
 
-  // Eye
   ctx.fillStyle = '#1a0505';
   ctx.beginPath();
   ctx.ellipse(x - w * 0.58, bodyY - h * 0.12, 3.5, 2.5, -0.3, 0, Math.PI * 2);
@@ -441,7 +446,6 @@ function drawBull(b) {
   ctx.arc(x - w * 0.57, bodyY - h * 0.13, 1.2, 0, Math.PI * 2);
   ctx.fill();
 
-  // Legs
   ctx.fillStyle = '#C41E3A';
   const legSwing = Math.sin(phase) * 12;
   const legSwing2 = Math.sin(phase + Math.PI) * 10;
@@ -478,7 +482,6 @@ function drawBull(b) {
   ctx.closePath();
   ctx.fill();
 
-  // Tail
   ctx.beginPath();
   ctx.moveTo(x + w * 0.42, bodyY - h * 0.05);
   ctx.quadraticCurveTo(x + w * 0.65, bodyY - h * 0.35, x + w * 0.55, bodyY - h * 0.15);
@@ -492,7 +495,6 @@ function drawEagle(e) {
   const y = e.y;
   const flap = Math.sin(frame * 0.35 + x * 0.02) * 12;
 
-  // Wings
   ctx.fillStyle = '#3d2b1f';
   ctx.beginPath();
   ctx.ellipse(x - 8, y + flap * 0.3, 22, 8 + Math.abs(flap)*0.3, -0.4 + flap*0.02, 0, Math.PI*2);
@@ -501,19 +503,16 @@ function drawEagle(e) {
   ctx.ellipse(x + 18, y - flap * 0.3, 22, 8 + Math.abs(flap)*0.3, 0.4 - flap*0.02, 0, Math.PI*2);
   ctx.fill();
 
-  // Body
   ctx.fillStyle = '#2a1c14';
   ctx.beginPath();
   ctx.ellipse(x + 5, y, 18, 10, 0, 0, Math.PI*2);
   ctx.fill();
 
-  // White bald head
   ctx.fillStyle = '#f5f5f0';
   ctx.beginPath();
   ctx.arc(x - 12, y - 2, 9, 0, Math.PI*2);
   ctx.fill();
 
-  // Beak
   ctx.fillStyle = '#e8a020';
   ctx.beginPath();
   ctx.moveTo(x - 20, y - 1);
@@ -521,13 +520,11 @@ function drawEagle(e) {
   ctx.lineTo(x - 18, y + 4);
   ctx.fill();
 
-  // Eye
   ctx.fillStyle = '#111';
   ctx.beginPath();
   ctx.arc(x - 14, y - 4, 2, 0, Math.PI*2);
   ctx.fill();
 
-  // Tail feathers
   ctx.fillStyle = '#3d2b1f';
   ctx.beginPath();
   ctx.moveTo(x + 18, y);
@@ -544,7 +541,6 @@ function drawUI() {
   ctx.textAlign = 'right';
   ctx.fillText('High: ' + highScore, W - 18, 34);
 
-  // floating texts
   floatTexts.forEach(t => {
     ctx.globalAlpha = Math.min(1, t.life / 20);
     ctx.fillStyle = t.color;
