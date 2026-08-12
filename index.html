@@ -56,11 +56,11 @@ const player = {
   y: GROUND,
   vy: 0,
   w: 20,
-  h: 55,
+  h: 50,
   grounded: true,
   jumpsLeft: 2,
-  spinning: 0, // frames of spin-past animation
-  spinAngle: 0
+  capeSwing: 0,
+  spinning: 0
 };
 
 function reset() {
@@ -77,58 +77,55 @@ function reset() {
   player.vy = 0;
   player.grounded = true;
   player.jumpsLeft = 2;
+  player.capeSwing = 0;
   player.spinning = 0;
-  player.spinAngle = 0;
   frame = 0;
 }
 
-function tryDodgeOrJump() {
+function tryDodge() {
+  // Only if a bull is RIGHT NEXT to the player
+  for (const b of bulls) {
+    if (b.dodged) continue;
+    const dx = b.x - player.x;
+    // tight window: bull is very close (right next to)
+    if (dx > 25 && dx < 95) {
+      b.dodged = true;
+      player.spinning = 40;
+      player.capeSwing = 45;
+      player.vy = 0;
+      player.y = GROUND;
+      player.grounded = true;
+      player.jumpsLeft = 2;
+      score += 100;
+      floatTexts.push({
+        text: 'Olé! +100',
+        x: player.x + 40,
+        y: player.y - 90,
+        life: 70,
+        color: '#FFD700'
+      });
+      for (let k = 0; k < 14; k++) {
+        particles.push({
+          x: player.x + 10,
+          y: player.y - 40,
+          vx: (Math.random() - 0.5) * 8,
+          vy: (Math.random() - 0.5) * 6 - 2,
+          life: 30 + Math.random() * 20
+        });
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+function jump() {
   if (state === 'start' || state === 'over') {
     reset();
     return;
   }
-
-  // Check for tight "right next to bull" dodge opportunity first
-  let canDodge = false;
-  let targetBull = null;
-  for (const b of bulls) {
-    if (b.dodged) continue;
-    const dist = b.x - player.x;
-    // very tight window: bull is right next to the matador
-    if (dist > 10 && dist < 85 && player.grounded) {
-      canDodge = true;
-      targetBull = b;
-      break;
-    }
-  }
-
-  if (canDodge && targetBull) {
-    // SPIN PAST - no jump
-    targetBull.dodged = true;
-    player.spinning = 28;
-    player.spinAngle = 0;
-    player.vy = 0; // stay grounded / no jump
-    score += 100;
-    floatTexts.push({
-      text: 'Olé! +100',
-      x: player.x + 30,
-      y: player.y - 80,
-      life: 55,
-      color: '#FFD700'
-    });
-    // celebratory particles
-    for (let k = 0; k < 14; k++) {
-      particles.push({
-        x: player.x,
-        y: player.y - 40,
-        vx: (Math.random() - 0.5) * 8,
-        vy: (Math.random() - 0.5) * 6 - 2,
-        life: 30 + Math.random() * 15,
-        color: '#C41E3A'
-      });
-    }
-    return;
-  }
+  // Prefer dodge if right next to a bull (spin past, no jump)
+  if (tryDodge()) return;
 
   // Normal jump / double jump
   if (player.jumpsLeft > 0 && player.spinning <= 0) {
@@ -151,13 +148,13 @@ function tryDodgeOrJump() {
 window.addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'ArrowUp') {
     e.preventDefault();
-    tryDodgeOrJump();
+    jump();
   }
 });
-canvas.addEventListener('mousedown', tryDodgeOrJump);
+canvas.addEventListener('mousedown', jump);
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
-  tryDodgeOrJump();
+  jump();
 }, {passive: false});
 
 function spawnBull() {
@@ -172,11 +169,19 @@ function spawnBull() {
   });
 }
 
-function spawnEagle() {
-  // Only spawn if no bulls are currently near the right side of the screen
-  const bullNearRight = bulls.some(b => b.x > W - 200);
-  if (bullNearRight || bulls.length > 1) return; // never with bulls
+function canSpawnEagle() {
+  // Never spawn eagles while any bull is still on the right half or approaching
+  for (const b of bulls) {
+    if (b.x > W * 0.35) return false;
+  }
+  return true;
+}
 
+function spawnEagle() {
+  if (!canSpawnEagle()) {
+    eagleTimer = 40; // retry soon
+    return;
+  }
   eagles.push({
     x: W + 60,
     y: 140 + Math.random() * 90,
@@ -189,15 +194,15 @@ function spawnEagle() {
 function update() {
   if (state !== 'playing') return;
   frame++;
-  if (frame % 4 === 0) score++;
-  speed = 6 + Math.min(score * 0.008, 7);
+  score = Math.floor(frame / 4);
+  speed = 6 + Math.min(score * 0.012, 8);
 
-  // spin animation
+  // Spinning state: lock to ground and spin past
   if (player.spinning > 0) {
     player.spinning--;
-    player.spinAngle += 0.45;
     player.vy = 0;
-    player.y = GROUND; // stay on ground while spinning past
+    player.y = GROUND;
+    player.grounded = true;
   } else {
     player.vy += GRAVITY;
     player.y += player.vy;
@@ -210,23 +215,22 @@ function update() {
       player.grounded = false;
     }
   }
+  if (player.capeSwing > 0) player.capeSwing--;
 
-  // spawn bulls
   spawnTimer--;
   if (spawnTimer <= 0) {
     spawnBull();
-    const interval = Math.max(45, 110 - score * 0.2) + Math.random() * 40;
+    const interval = Math.max(40, 105 - score * 0.25) + Math.random() * 35;
     spawnTimer = interval;
   }
 
-  // spawn eagles only when safe (no bulls near)
   eagleTimer--;
   if (eagleTimer <= 0) {
     spawnEagle();
-    eagleTimer = 220 + Math.random() * 160;
+    eagleTimer = 180 + Math.random() * 160 - Math.min(score * 0.3, 50);
   }
 
-  // bulls
+  // bulls movement + collision (dodge already handled on input)
   for (let i = bulls.length - 1; i >= 0; i--) {
     const b = bulls[i];
     b.x -= b.speed;
@@ -235,7 +239,7 @@ function update() {
       continue;
     }
 
-    if (player.spinning > 0) continue; // invulnerable while spinning past
+    if (player.spinning > 0) continue; // invincible while spinning past
 
     const px = player.x - 8;
     const py = player.y - player.h + 6;
@@ -267,7 +271,6 @@ function update() {
       continue;
     }
     if (player.spinning > 0) continue;
-
     const px = player.x - 8;
     const py = player.y - player.h + 6;
     const pw = 16;
@@ -289,7 +292,7 @@ function update() {
     const p = particles[i];
     p.x += p.vx;
     p.y += p.vy;
-    p.vy += 0.15;
+    p.vy += 0.18;
     p.life--;
     if (p.life <= 0) particles.splice(i, 1);
   }
@@ -338,24 +341,24 @@ function drawShadow(x, y, w) {
 function drawMatador() {
   const x = player.x;
   const y = player.y;
-  const jumping = !player.grounded;
+  const jumping = !player.grounded && player.spinning <= 0;
+  const swing = player.capeSwing > 0;
   const spinning = player.spinning > 0;
-
   drawShadow(x, GROUND, 40);
 
   ctx.save();
   if (spinning) {
-    // spin around center
+    // Spin effect: rotate around center
     ctx.translate(x, y - 40);
-    ctx.rotate(player.spinAngle);
+    ctx.rotate((40 - player.spinning) * 0.35);
     ctx.translate(-x, -(y - 40));
   }
 
-  // Large red cape
+  // LARGE RED CAPE
   ctx.fillStyle = '#C41E3A';
   ctx.beginPath();
-  const wave = Math.sin(frame * 0.2) * (jumping || spinning ? 12 : 6);
-  const raise = spinning ? 15 : 0;
+  const wave = Math.sin(frame * 0.2) * (jumping ? 10 : 6) + (swing || spinning ? Math.sin(frame * 0.5) * 22 : 0);
+  const raise = (swing || spinning) ? 14 : 0;
   ctx.moveTo(x + 4, y - 78 - raise);
   ctx.quadraticCurveTo(x - 30 + wave * 0.5, y - 95 - raise, x - 70 + wave, y - 55);
   ctx.quadraticCurveTo(x - 95 + wave * 1.1, y - 10, x - 55 + wave * 0.6, y + 15);
@@ -365,10 +368,10 @@ function drawMatador() {
   ctx.closePath();
   ctx.fill();
 
-  // Body
+  // BLACK BODY
   ctx.fillStyle = '#0a0a0a';
 
-  const legSwing = (jumping || spinning) ? 0 : Math.sin(frame * 0.38) * 8;
+  const legSwing = jumping ? 0 : Math.sin(frame * 0.38) * 8;
   ctx.beginPath();
   ctx.moveTo(x - 6, y - 28);
   ctx.lineTo(x - 14 - legSwing * 0.7, y);
@@ -447,18 +450,23 @@ function drawBull(b) {
   drawShadow(x - w * 0.1, GROUND, w * 0.9);
 
   ctx.fillStyle = '#C41E3A';
+
   ctx.beginPath();
   ctx.ellipse(x, bodyY, w * 0.48, h * 0.34, 0, 0, Math.PI * 2);
   ctx.fill();
+
   ctx.beginPath();
   ctx.ellipse(x - w * 0.28, bodyY - h * 0.05, w * 0.28, h * 0.28, -0.3, 0, Math.PI * 2);
   ctx.fill();
+
   ctx.beginPath();
   ctx.ellipse(x - w * 0.52, bodyY - h * 0.08, w * 0.24, h * 0.22, -0.15, 0, Math.PI * 2);
   ctx.fill();
+
   ctx.beginPath();
   ctx.ellipse(x - w * 0.68, bodyY - h * 0.02, w * 0.14, h * 0.12, 0, 0, Math.PI * 2);
   ctx.fill();
+
   ctx.beginPath();
   ctx.moveTo(x - w * 0.48, bodyY - h * 0.22);
   ctx.quadraticCurveTo(x - w * 0.55, bodyY - h * 0.55, x - w * 0.35, bodyY - h * 0.65);
@@ -469,6 +477,7 @@ function drawBull(b) {
   ctx.quadraticCurveTo(x - w * 0.72, bodyY - h * 0.6, x - w * 0.58, bodyY - h * 0.7);
   ctx.quadraticCurveTo(x - w * 0.62, bodyY - h * 0.38, x - w * 0.55, bodyY - h * 0.25);
   ctx.fill();
+
   ctx.fillStyle = '#1a0505';
   ctx.beginPath();
   ctx.ellipse(x - w * 0.58, bodyY - h * 0.12, 3.5, 2.5, -0.3, 0, Math.PI * 2);
@@ -477,9 +486,11 @@ function drawBull(b) {
   ctx.beginPath();
   ctx.arc(x - w * 0.57, bodyY - h * 0.13, 1.2, 0, Math.PI * 2);
   ctx.fill();
+
   ctx.fillStyle = '#C41E3A';
   const legSwing = Math.sin(phase) * 12;
   const legSwing2 = Math.sin(phase + Math.PI) * 10;
+
   ctx.beginPath();
   ctx.moveTo(x - w * 0.25, bodyY + h * 0.15);
   ctx.quadraticCurveTo(x - w * 0.35 + legSwing * 0.3, bodyY + h * 0.35, x - w * 0.4 + legSwing * 0.5, y - 2);
@@ -487,6 +498,7 @@ function drawBull(b) {
   ctx.quadraticCurveTo(x - w * 0.22, bodyY + h * 0.3, x - w * 0.18, bodyY + h * 0.12);
   ctx.closePath();
   ctx.fill();
+
   ctx.beginPath();
   ctx.moveTo(x - w * 0.05, bodyY + h * 0.18);
   ctx.lineTo(x - w * 0.08 + legSwing2 * 0.4, y);
@@ -494,6 +506,7 @@ function drawBull(b) {
   ctx.lineTo(x + w * 0.08, bodyY + h * 0.15);
   ctx.closePath();
   ctx.fill();
+
   ctx.beginPath();
   ctx.moveTo(x + w * 0.15, bodyY + h * 0.2);
   ctx.lineTo(x + w * 0.22 - legSwing * 0.3, y);
@@ -501,6 +514,7 @@ function drawBull(b) {
   ctx.lineTo(x + w * 0.32, bodyY + h * 0.18);
   ctx.closePath();
   ctx.fill();
+
   ctx.beginPath();
   ctx.moveTo(x + w * 0.35, bodyY + h * 0.15);
   ctx.lineTo(x + w * 0.42 + legSwing2 * 0.25, y);
@@ -508,6 +522,7 @@ function drawBull(b) {
   ctx.lineTo(x + w * 0.48, bodyY + h * 0.12);
   ctx.closePath();
   ctx.fill();
+
   ctx.beginPath();
   ctx.moveTo(x + w * 0.42, bodyY - h * 0.05);
   ctx.quadraticCurveTo(x + w * 0.65, bodyY - h * 0.35, x + w * 0.55, bodyY - h * 0.15);
@@ -520,6 +535,7 @@ function drawEagle(e) {
   const x = e.x;
   const y = e.y;
   const flap = Math.sin(frame * 0.35 + x * 0.02) * 12;
+
   ctx.fillStyle = '#3d2b1f';
   ctx.beginPath();
   ctx.ellipse(x - 8, y + flap * 0.3, 22, 8 + Math.abs(flap)*0.3, -0.4 + flap*0.02, 0, Math.PI*2);
@@ -527,24 +543,29 @@ function drawEagle(e) {
   ctx.beginPath();
   ctx.ellipse(x + 18, y - flap * 0.3, 22, 8 + Math.abs(flap)*0.3, 0.4 - flap*0.02, 0, Math.PI*2);
   ctx.fill();
+
   ctx.fillStyle = '#2a1c14';
   ctx.beginPath();
   ctx.ellipse(x + 5, y, 18, 10, 0, 0, Math.PI*2);
   ctx.fill();
+
   ctx.fillStyle = '#f5f5f0';
   ctx.beginPath();
   ctx.arc(x - 12, y - 2, 9, 0, Math.PI*2);
   ctx.fill();
+
   ctx.fillStyle = '#e8a020';
   ctx.beginPath();
   ctx.moveTo(x - 20, y - 1);
   ctx.lineTo(x - 28, y + 3);
   ctx.lineTo(x - 18, y + 4);
   ctx.fill();
+
   ctx.fillStyle = '#111';
   ctx.beginPath();
   ctx.arc(x - 14, y - 4, 2, 0, Math.PI*2);
   ctx.fill();
+
   ctx.fillStyle = '#3d2b1f';
   ctx.beginPath();
   ctx.moveTo(x + 18, y);
@@ -564,27 +585,29 @@ function drawUI() {
   floatTexts.forEach(t => {
     ctx.globalAlpha = Math.min(1, t.life / 25);
     ctx.fillStyle = t.color;
-    ctx.font = 'bold 26px system-ui';
+    ctx.font = 'bold 24px system-ui';
     ctx.textAlign = 'center';
     ctx.fillText(t.text, t.x, t.y);
     ctx.globalAlpha = 1;
   });
 
   if (state === 'start') {
-    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 52px system-ui';
     ctx.textAlign = 'center';
     ctx.fillText('Chromodor', W/2, H/2 - 90);
     ctx.font = '18px system-ui';
-    ctx.fillText('Space / Click next to a bull = Spin past for Olé! +100',
-                 W/2, H/2 - 40);
-    ctx.fillText('Double jump available  •  Avoid eagles',
-                 W/2, H/2 - 10);
+    ctx.fillText('Matador vs Bulls & Eagles', W/2, H/2 - 45);
+    ctx.font = '15px system-ui';
+    ctx.fillText('Space / Click = Jump (double jump)', W/2, H/2 - 5);
+    ctx.fillText('Press jump when RIGHT NEXT to a bull to SPIN past it', W/2, H/2 + 22);
+    ctx.fillText('Get +100 Olé! bonus (risky timing)', W/2, H/2 + 45);
+    ctx.fillText('Avoid the flying bald eagles!', W/2, H/2 + 68);
     ctx.fillStyle = '#FFD700';
-    ctx.font = 'bold 28px system-ui';
-    ctx.fillText('¡Olé!', W/2, H/2 + 50);
+    ctx.font = 'bold 26px system-ui';
+    ctx.fillText('\u00a1Ol\u00e9!', W/2, H/2 + 110);
   }
 
   if (state === 'over') {
@@ -593,7 +616,7 @@ function drawUI() {
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 46px system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText('¡Ay!', W/2, H/2 - 50);
+    ctx.fillText('\u00a1Ay!', W/2, H/2 - 50);
     ctx.font = '26px system-ui';
     ctx.fillText('Score: ' + score, W/2, H/2 + 5);
     if (score >= highScore && score > 0) {
@@ -609,9 +632,9 @@ function drawUI() {
 
 function drawParticles() {
   particles.forEach(p => {
-    ctx.fillStyle = p.color || `rgba(160,120,60,${Math.max(0, p.life/35)})`;
+    ctx.fillStyle = `rgba(160,120,60,${Math.max(0, p.life/35)})`;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 2.5 + (25 - p.life)/12, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, 2.5 + (30-p.life)/15, 0, Math.PI*2);
     ctx.fill();
   });
 }
