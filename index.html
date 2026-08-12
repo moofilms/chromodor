@@ -103,11 +103,11 @@ canvas.addEventListener('touchstart', e => {
 }, {passive: false});
 
 function spawnBull() {
-  const size = 32 + Math.random() * 38;
+  const size = 36 + Math.random() * 32;
   bulls.push({
-    x: W + 70,
+    x: W + 80,
     y: GROUND,
-    w: size * 1.5,
+    w: size * 1.6,
     h: size,
     speed: speed + Math.random() * 1.8
   });
@@ -139,7 +139,7 @@ function update() {
   for (let i = bulls.length - 1; i >= 0; i--) {
     const b = bulls[i];
     b.x -= b.speed;
-    if (b.x + b.w < -30) {
+    if (b.x + b.w < -40) {
       bulls.splice(i, 1);
       continue;
     }
@@ -147,9 +147,9 @@ function update() {
     const py = player.y - player.h + 5;
     const pw = 14;
     const ph = player.h - 10;
-    const bx = b.x - b.w * 0.35;
+    const bx = b.x - b.w * 0.4;
     const by = b.y - b.h + 5;
-    const bw = b.w * 0.65;
+    const bw = b.w * 0.7;
     const bh = b.h * 0.85;
     if (px < bx + bw && px + pw > bx && py < by + bh && py + ph > by) {
       state = 'over';
@@ -282,48 +282,92 @@ function drawBull(b) {
   const y = b.y;
   const w = b.w;
   const h = b.h;
-  const bodyY = y - h * 0.4;
-  drawShadow(x, GROUND, w * 0.8);
-  ctx.fillStyle = '#1a1a1a';
+  const bodyY = y - h * 0.42;
+  const phase = frame * 0.35 + x * 0.01;
+
+  drawShadow(x, GROUND, w * 0.85);
+
+  // Solid red silhouette matching the logo style
+  ctx.fillStyle = '#C41E3A';
+
+  // === Main body (muscular) ===
   ctx.beginPath();
-  ctx.ellipse(x, bodyY, w * 0.5, h * 0.32, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + w * 0.05, bodyY, w * 0.48, h * 0.34, 0.1, 0, Math.PI * 2);
   ctx.fill();
+
+  // === Chest / shoulder muscle ===
   ctx.beginPath();
-  ctx.ellipse(x - w * 0.42, bodyY - 2, w * 0.26, h * 0.26, -0.2, 0, Math.PI * 2);
+  ctx.ellipse(x - w * 0.15, bodyY - h * 0.05, w * 0.28, h * 0.28, -0.2, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = '#E8E0D0';
+
+  // === Head (aggressive, facing left) ===
   ctx.beginPath();
-  ctx.moveTo(x - w * 0.5, bodyY - h * 0.2);
-  ctx.lineTo(x - w * 0.75, bodyY - h * 0.52);
-  ctx.lineTo(x - w * 0.58, bodyY - h * 0.15);
+  ctx.ellipse(x - w * 0.42, bodyY - h * 0.08, w * 0.24, h * 0.22, -0.25, 0, Math.PI * 2);
   ctx.fill();
+
+  // Snout
   ctx.beginPath();
-  ctx.moveTo(x - w * 0.55, bodyY - h * 0.26);
-  ctx.lineTo(x - w * 0.82, bodyY - h * 0.48);
-  ctx.lineTo(x - w * 0.63, bodyY - h * 0.2);
+  ctx.ellipse(x - w * 0.58, bodyY - h * 0.02, w * 0.14, h * 0.12, -0.1, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = '#1a1a1a';
-  ctx.lineWidth = 3.5;
-  ctx.lineCap = 'round';
-  const phase = frame * 0.42 + x * 0.01;
-  const legs = [[-0.3, 0], [-0.1, Math.PI], [0.12, 0.8], [0.32, Math.PI + 0.8]];
-  legs.forEach(([ox, p]) => {
-    const swing = Math.sin(phase + p) * 10;
-    ctx.beginPath();
-    ctx.moveTo(x + w * ox, bodyY + h * 0.15);
-    ctx.lineTo(x + w * ox + swing * 0.55, y);
-    ctx.stroke();
-  });
-  ctx.fillStyle = '#ff2222';
+
+  // === Large curved horns (logo style) ===
   ctx.beginPath();
-  ctx.arc(x - w * 0.52, bodyY - 6, 2.8, 0, Math.PI * 2);
+  // Left horn (upper)
+  ctx.moveTo(x - w * 0.48, bodyY - h * 0.25);
+  ctx.quadraticCurveTo(x - w * 0.55, bodyY - h * 0.55, x - w * 0.35, bodyY - h * 0.62);
+  ctx.quadraticCurveTo(x - w * 0.42, bodyY - h * 0.4, x - w * 0.48, bodyY - h * 0.25);
   ctx.fill();
-  ctx.strokeStyle = '#1a1a1a';
-  ctx.lineWidth = 2.5;
+  // Right horn
   ctx.beginPath();
-  ctx.moveTo(x + w * 0.45, bodyY + 2);
-  ctx.quadraticCurveTo(x + w * 0.75, bodyY - 18, x + w * 0.65, bodyY + 8);
-  ctx.stroke();
+  ctx.moveTo(x - w * 0.38, bodyY - h * 0.28);
+  ctx.quadraticCurveTo(x - w * 0.32, bodyY - h * 0.58, x - w * 0.12, bodyY - h * 0.55);
+  ctx.quadraticCurveTo(x - w * 0.28, bodyY - h * 0.38, x - w * 0.38, bodyY - h * 0.28);
+  ctx.fill();
+
+  // === Eye (angry slit) ===
+  ctx.fillStyle = '#1a0505';
+  ctx.beginPath();
+  ctx.ellipse(x - w * 0.48, bodyY - h * 0.12, 3.5, 2, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // === Legs (dynamic pose with slight gallop) ===
+  ctx.fillStyle = '#C41E3A';
+  const swing = Math.sin(phase) * 6;
+  // Front left (raised-ish)
+  ctx.beginPath();
+  ctx.moveTo(x - w * 0.25, bodyY + h * 0.15);
+  ctx.lineTo(x - w * 0.35 + swing * 0.4, y - 2);
+  ctx.lineTo(x - w * 0.18 + swing * 0.4, y - 2);
+  ctx.closePath();
+  ctx.fill();
+  // Front right
+  ctx.beginPath();
+  ctx.moveTo(x - w * 0.05, bodyY + h * 0.18);
+  ctx.lineTo(x - w * 0.12 - swing * 0.5, y);
+  ctx.lineTo(x + w * 0.05 - swing * 0.5, y);
+  ctx.closePath();
+  ctx.fill();
+  // Back left
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.25, bodyY + h * 0.12);
+  ctx.lineTo(x + w * 0.18 + swing * 0.3, y);
+  ctx.lineTo(x + w * 0.35 + swing * 0.3, y);
+  ctx.closePath();
+  ctx.fill();
+  // Back right
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.4, bodyY + h * 0.1);
+  ctx.lineTo(x + w * 0.32 - swing * 0.4, y - 1);
+  ctx.lineTo(x + w * 0.48 - swing * 0.4, y - 1);
+  ctx.closePath();
+  ctx.fill();
+
+  // === Tail (curled like logo) ===
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.48, bodyY - h * 0.05);
+  ctx.quadraticCurveTo(x + w * 0.7, bodyY - h * 0.25, x + w * 0.62, bodyY + h * 0.1);
+  ctx.quadraticCurveTo(x + w * 0.55, bodyY - h * 0.05, x + w * 0.48, bodyY - h * 0.05);
+  ctx.fill();
 }
 
 function drawUI() {
