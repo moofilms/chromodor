@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chromodor</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a1a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    overflow: hidden;
+  }
+  canvas {
+    background: linear-gradient(to bottom, #87CEEB 0%, #B0E0E6 55%, #E8D5A3 55%, #C4A35A 100%);
+    border: 4px solid #333;
+    border-radius: 8px;
+    max-width: 95vw;
+    max-height: 90vh;
+  }
+</style>
+</head>
+<body>
+<canvas id="c" width="800" height="400"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+const GROUND = 340;
+
+const GRAVITY = 0.65;
+const JUMP_V = -13.5;
+const PLAYER_X = 130;
+
+let state = 'start';
+let score = 0;
+let highScore = parseInt(localStorage.getItem('chromodorHigh') || '0');
+let frame = 0;
+let speed = 6;
+let bulls = [];
+let spawnTimer = 0;
+let particles = [];
+
+const player = {
+  x: PLAYER_X,
+  y: GROUND,
+  vy: 0,
+  w: 20,
+  h: 50,
+  grounded: true
+};
+
+function reset() {
+  state = 'playing';
+  score = 0;
+  speed = 6;
+  bulls = [];
+  spawnTimer = 90;
+  particles = [];
+  player.y = GROUND;
+  player.vy = 0;
+  player.grounded = true;
+  frame = 0;
+}
+
+function jump() {
+  if (state === 'start' || state === 'over') {
+    reset();
+    return;
+  }
+  if (player.grounded) {
+    player.vy = JUMP_V;
+    player.grounded = false;
+    for (let i = 0; i < 7; i++) {
+      particles.push({
+        x: player.x + (Math.random()-0.5)*10,
+        y: GROUND,
+        vx: (Math.random()-0.5)*4,
+        vy: -Math.random()*3 - 1,
+        life: 18 + Math.random()*12
+      });
+    }
+  }
+}
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' || e.code === 'ArrowUp') {
+    e.preventDefault();
+    jump();
+  }
+});
+canvas.addEventListener('mousedown', jump);
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  jump();
+}, {passive: false});
+
+function spawnBull() {
+  const size = 32 + Math.random() * 38;
+  bulls.push({
+    x: W + 70,
+    y: GROUND,
+    w: size * 1.5,
+    h: size,
+    speed: speed + Math.random() * 1.8
+  });
+}
+
+function update() {
+  if (state !== 'playing') return;
+  frame++;
+  score = Math.floor(frame / 6);
+  speed = 6 + Math.min(score * 0.012, 8);
+
+  player.vy += GRAVITY;
+  player.y += player.vy;
+  if (player.y >= GROUND) {
+    player.y = GROUND;
+    player.vy = 0;
+    if (!player.grounded) {
+      for (let i = 0; i < 4; i++) {
+        particles.push({
+          x: player.x + (Math.random()-0.5)*12,
+          y: GROUND,
+          vx: (Math.random()-0.5)*2,
+          vy: -Math.random()*1.5,
+          life: 12
+        });
+      }
+    }
+    player.grounded = true;
+  } else {
+    player.grounded = false;
+  }
+
+  spawnTimer--;
+  if (spawnTimer <= 0) {
+    spawnBull();
+    const interval = Math.max(50, 120 - score * 0.25) + Math.random() * 40;
+    spawnTimer = interval;
+  }
+
+  for (let i = bulls.length - 1; i >= 0; i--) {
+    const b = bulls[i];
+    b.x -= b.speed;
+    if (b.x + b.w < -30) {
+      bulls.splice(i, 1);
+      continue;
+    }
+    const px = player.x - 7;
+    const py = player.y - player.h + 5;
+    const pw = 14;
+    const ph = player.h - 10;
+    const bx = b.x - b.w * 0.45;
+    const by = b.y - b.h + 5;
+    const bw = b.w * 0.7;
+    const bh = b.h * 0.85;
+    if (px < bx + bw && px + pw > bx && py < by + bh && py + ph > by) {
+      state = 'over';
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('chromodorHigh', highScore);
+      }
+    }
+  }
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.12;
+    p.life--;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawGround() {
+  ctx.fillStyle = '#C4A35A';
+  ctx.fillRect(0, GROUND, W, H - GROUND);
+  ctx.strokeStyle = '#8B6914';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(0, GROUND);
+  ctx.lineTo(W, GROUND);
+  ctx.stroke();
+  ctx.strokeStyle = '#A08040';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([20, 30]);
+  ctx.lineDashOffset = -(frame * speed * 0.7) % 50;
+  ctx.beginPath();
+  ctx.moveTo(0, GROUND + 15);
+  ctx.lineTo(W, GROUND + 15);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawShadow(x, y, w) {
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2, w * 0.6, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawMatador() {
+  const x = player.x;
+  const y = player.y;
+  const jumping = !player.grounded;
+
+  drawShadow(x, GROUND, 28);
+
+  // cape
+  ctx.fillStyle = '#C41E3A';
+  ctx.beginPath();
+  const wave = Math.sin(frame * 0.22) * (jumping ? 10 : 6);
+  ctx.moveTo(x - 4, y - 40);
+  ctx.quadraticCurveTo(x - 32 + wave, y - 28, x - 22, y - 4);
+  ctx.lineTo(x + 10, y - 6);
+  ctx.quadraticCurveTo(x - 2 + wave * 0.5, y - 24, x + 6, y - 40);
+  ctx.closePath();
+  ctx.fill();
+
+  // legs
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  const legSwing = jumping ? 0 : Math.sin(frame * 0.35) * 8;
+  ctx.beginPath();
+  ctx.moveTo(x - 5, y - 20);
+  ctx.lineTo(x - 9 - legSwing, y);
+  ctx.moveTo(x + 5, y - 20);
+  ctx.lineTo(x + 9 + legSwing, y);
+  ctx.stroke();
+
+  // torso
+  ctx.fillStyle = '#111';
+  ctx.fillRect(x - 10, y - 44, 20, 28);
+
+  // head
+  ctx.beginPath();
+  ctx.arc(x, y - 54, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // montera hat
+  ctx.fillStyle = '#222';
+  ctx.beginPath();
+  ctx.ellipse(x, y - 62, 14, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x - 6, y - 64);
+  ctx.lineTo(x, y - 78);
+  ctx.lineTo(x + 6, y - 64);
+  ctx.fill();
+
+  // arm
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x + 9, y - 36);
+  ctx.lineTo(x + 20, y - 22);
+  ctx.stroke();
+}
+
+function drawBull(b) {
+  const x = b.x;
+  const y = b.y;
+  const w = b.w;
+  const h = b.h;
+  const bodyY = y - h * 0.38;
+
+  drawShadow(x, GROUND, w * 0.8);
+
+  // body
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(x, bodyY, w * 0.48, h * 0.3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // head LEFT (charging toward player)
+  ctx.beginPath();
+  ctx.ellipse(x - w * 0.4, bodyY - 3, w * 0.26, h * 0.26, -0.15, 0, Math.PI * 2);
+  ctx.fill();
+
+  // horns
+  ctx.fillStyle = '#E8E0D0';
+  ctx.beginPath();
+  ctx.moveTo(x - w * 0.48, bodyY - h * 0.2);
+  ctx.lineTo(x - w * 0.72, bodyY - h * 0.48);
+  ctx.lineTo(x - w * 0.52, bodyY - h * 0.15);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x - w * 0.55, bodyY - h * 0.28);
+  ctx.lineTo(x - w * 0.82, bodyY - h * 0.42);
+  ctx.lineTo(x - w * 0.58, bodyY - h * 0.2);
+  ctx.fill();
+
+  // legs
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 3.5;
+  ctx.lineCap = 'round';
+  const phase = frame * 0.45 + x * 0.008;
+  const legs = [[-0.3, 0], [-0.1, Math.PI], [0.1, 0.6], [0.3, Math.PI + 0.6]];
+  legs.forEach(([ox, p]) => {
+    const swing = Math.sin(phase + p) * 10;
+    ctx.beginPath();
+    ctx.moveTo(x + w * ox, bodyY + h * 0.12);
+    ctx.lineTo(x + w * ox + swing * 0.5, y);
+    ctx.stroke();
+  });
+
+  // eye
+  ctx.fillStyle = '#ff2222';
+  ctx.beginPath();
+  ctx.arc(x - w * 0.5, bodyY - 6, 2.8, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.fillStyle = `rgba(160,120,60,${Math.max(0, p.life / 25)}`);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawUI() {
+  ctx.fillStyle = '#1a1a1a';
+  ctx.font = 'bold 22px system-ui';
+  ctx.textAlign = 'left';
+  ctx.fillText('Score: ' + score, 18, 34);
+  ctx.textAlign = 'right';
+  ctx.fillText('High: ' + highScore, W - 18, 34);
+
+  if (state === 'start') {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 46px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('Chromodor', W / 2, H / 2 - 55);
+    ctx.font = '22px system-ui';
+    ctx.fillText('Dodge the charging bulls!', W / 2, H / 2 - 5);
+    ctx.font = '18px system-ui';
+    ctx.fillText('SPACE / Click / Tap  to start & jump', W / 2, H / 2 + 45);
+    ctx.fillStyle = '#C41E3A';
+    ctx.font = 'bold 24px system-ui';
+    ctx.fillText('\u00a1Ol\u00e9!', W / 2, H / 2 + 90);
+  }
+
+  if (state === 'over') {
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 44px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('\u00a1Ay!', W / 2, H / 2 - 50);
+    ctx.font = '26px system-ui';
+    ctx.fillText('Score: ' + score, W / 2, H / 2 + 5);
+    if (score >= highScore && score > 0) {
+      ctx.fillStyle = '#FFD700';
+      ctx.font = 'bold 22px system-ui';
+      ctx.fillText('\u2605 New High Score! \u2605', W / 2, H / 2 + 45);
+    }
+    ctx.fillStyle = '#fff';
+    ctx.font = '18px system-ui';
+    ctx.fillText('SPACE / Click to try again', W / 2, H / 2 + 90);
+  }
+}
+
+function loop() {
+  update();
+  ctx.clearRect(0, 0, W, H);
+  drawGround();
+  bulls.forEach(drawBull);
+  drawMatador();
+  drawParticles();
+  drawUI();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
