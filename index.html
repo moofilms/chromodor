@@ -103,7 +103,7 @@ canvas.addEventListener('touchstart', e => {
 }, {passive: false});
 
 function spawnBull() {
-  const size = 36 + Math.random() * 32;
+  const size = 36 + Math.random() * 40;
   bulls.push({
     x: W + 80,
     y: GROUND,
@@ -148,8 +148,8 @@ function update() {
     const pw = 14;
     const ph = player.h - 10;
     const bx = b.x - b.w * 0.4;
-    const by = b.y - b.h + 5;
-    const bw = b.w * 0.7;
+    const by = b.y - b.h + 8;
+    const bw = b.w * 0.75;
     const bh = b.h * 0.85;
     if (px < bx + bw && px + pw > bx && py < by + bh && py + ph > by) {
       state = 'over';
@@ -197,9 +197,9 @@ function drawGround() {
 }
 
 function drawShadow(x, y, w) {
-  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
   ctx.beginPath();
-  ctx.ellipse(x, y + 2, w * 0.6, 6, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, y + 2, w * 0.55, 7, 0, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -209,7 +209,7 @@ function drawMatador() {
   const jumping = !player.grounded;
   drawShadow(x, GROUND, 38);
 
-  // Large dramatic red cape matching the logo silhouette (big billowing shape)
+  // Large dramatic red cape
   ctx.fillStyle = '#C41E3A';
   ctx.beginPath();
   const wave = Math.sin(frame * 0.22) * (jumping ? 14 : 9);
@@ -222,7 +222,7 @@ function drawMatador() {
   ctx.closePath();
   ctx.fill();
 
-  // Legs run cycle
+  // Legs
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 5.5;
   ctx.lineCap = 'round';
@@ -234,7 +234,7 @@ function drawMatador() {
   ctx.lineTo(x + 15 + legSwing * 0.75, y);
   ctx.stroke();
 
-  // Body silhouette
+  // Body
   ctx.fillStyle = '#111';
   ctx.beginPath();
   ctx.moveTo(x - 12, y - 52);
@@ -249,7 +249,7 @@ function drawMatador() {
   ctx.arc(x + 2, y - 62, 12, 0, Math.PI * 2);
   ctx.fill();
 
-  // Montera hat (logo style)
+  // Montera hat
   ctx.fillStyle = '#0a0a0a';
   ctx.beginPath();
   ctx.ellipse(x + 2, y - 73, 16, 9, 0, 0, Math.PI * 2);
@@ -259,7 +259,7 @@ function drawMatador() {
   ctx.quadraticCurveTo(x + 2, y - 96, x + 13, y - 75);
   ctx.fill();
 
-  // Extended arm (dramatic pose holding cape)
+  // Arms
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 5;
   ctx.lineCap = 'round';
@@ -270,7 +270,6 @@ function drawMatador() {
   ctx.beginPath();
   ctx.arc(x + 28, y - 34, 4.5, 0, Math.PI * 2);
   ctx.fill();
-  // Secondary arm
   ctx.beginPath();
   ctx.moveTo(x - 7, y - 46);
   ctx.lineTo(x - 18, y - 32);
@@ -283,90 +282,100 @@ function drawBull(b) {
   const w = b.w;
   const h = b.h;
   const bodyY = y - h * 0.42;
-  const phase = frame * 0.35 + x * 0.01;
+  const phase = frame * 0.35 + x * 0.008;
+  drawShadow(x - w * 0.1, GROUND, w * 0.9);
 
-  drawShadow(x, GROUND, w * 0.85);
+  ctx.fillStyle = '#C41E3A'; // solid red like the logo
 
-  // Solid red silhouette matching the logo style
-  ctx.fillStyle = '#C41E3A';
-
-  // === Main body (muscular) ===
+  // Main body (muscular, logo-style)
   ctx.beginPath();
-  ctx.ellipse(x + w * 0.05, bodyY, w * 0.48, h * 0.34, 0.1, 0, Math.PI * 2);
+  ctx.ellipse(x, bodyY, w * 0.48, h * 0.34, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // === Chest / shoulder muscle ===
+  // Thick neck / shoulder
   ctx.beginPath();
-  ctx.ellipse(x - w * 0.15, bodyY - h * 0.05, w * 0.28, h * 0.28, -0.2, 0, Math.PI * 2);
+  ctx.ellipse(x - w * 0.28, bodyY - h * 0.05, w * 0.28, h * 0.28, -0.3, 0, Math.PI * 2);
   ctx.fill();
 
-  // === Head (aggressive, facing left) ===
+  // Head (aggressive, facing left)
   ctx.beginPath();
-  ctx.ellipse(x - w * 0.42, bodyY - h * 0.08, w * 0.24, h * 0.22, -0.25, 0, Math.PI * 2);
+  ctx.ellipse(x - w * 0.52, bodyY - h * 0.08, w * 0.24, h * 0.22, -0.15, 0, Math.PI * 2);
   ctx.fill();
 
   // Snout
   ctx.beginPath();
-  ctx.ellipse(x - w * 0.58, bodyY - h * 0.02, w * 0.14, h * 0.12, -0.1, 0, Math.PI * 2);
+  ctx.ellipse(x - w * 0.68, bodyY - h * 0.02, w * 0.14, h * 0.12, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // === Large curved horns (logo style) ===
+  // Large curved horns (logo style - upward and outward)
   ctx.beginPath();
-  // Left horn (upper)
-  ctx.moveTo(x - w * 0.48, bodyY - h * 0.25);
-  ctx.quadraticCurveTo(x - w * 0.55, bodyY - h * 0.55, x - w * 0.35, bodyY - h * 0.62);
-  ctx.quadraticCurveTo(x - w * 0.42, bodyY - h * 0.4, x - w * 0.48, bodyY - h * 0.25);
+  ctx.moveTo(x - w * 0.48, bodyY - h * 0.22);
+  ctx.quadraticCurveTo(x - w * 0.55, bodyY - h * 0.55, x - w * 0.35, bodyY - h * 0.65);
+  ctx.quadraticCurveTo(x - w * 0.42, bodyY - h * 0.35, x - w * 0.48, bodyY - h * 0.22);
   ctx.fill();
-  // Right horn
   ctx.beginPath();
-  ctx.moveTo(x - w * 0.38, bodyY - h * 0.28);
-  ctx.quadraticCurveTo(x - w * 0.32, bodyY - h * 0.58, x - w * 0.12, bodyY - h * 0.55);
-  ctx.quadraticCurveTo(x - w * 0.28, bodyY - h * 0.38, x - w * 0.38, bodyY - h * 0.28);
+  ctx.moveTo(x - w * 0.55, bodyY - h * 0.25);
+  ctx.quadraticCurveTo(x - w * 0.72, bodyY - h * 0.6, x - w * 0.58, bodyY - h * 0.7);
+  ctx.quadraticCurveTo(x - w * 0.62, bodyY - h * 0.38, x - w * 0.55, bodyY - h * 0.25);
   ctx.fill();
 
-  // === Eye (angry slit) ===
+  // Eye (angry)
   ctx.fillStyle = '#1a0505';
   ctx.beginPath();
-  ctx.ellipse(x - w * 0.48, bodyY - h * 0.12, 3.5, 2, -0.3, 0, Math.PI * 2);
+  ctx.ellipse(x - w * 0.58, bodyY - h * 0.12, 3.5, 2.5, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  // Eye highlight
+  ctx.fillStyle = '#C41E3A';
+  ctx.beginPath();
+  ctx.arc(x - w * 0.57, bodyY - h * 0.13, 1.2, 0, Math.PI * 2);
   ctx.fill();
 
-  // === Legs (dynamic pose with slight gallop) ===
+  // Legs - dynamic charging pose with animation
   ctx.fillStyle = '#C41E3A';
-  const swing = Math.sin(phase) * 6;
-  // Front left (raised-ish)
+  const legSwing = Math.sin(phase) * 12;
+  const legSwing2 = Math.sin(phase + Math.PI) * 10;
+
+  // Front left leg (raised / charging)
   ctx.beginPath();
   ctx.moveTo(x - w * 0.25, bodyY + h * 0.15);
-  ctx.lineTo(x - w * 0.35 + swing * 0.4, y - 2);
-  ctx.lineTo(x - w * 0.18 + swing * 0.4, y - 2);
-  ctx.closePath();
-  ctx.fill();
-  // Front right
-  ctx.beginPath();
-  ctx.moveTo(x - w * 0.05, bodyY + h * 0.18);
-  ctx.lineTo(x - w * 0.12 - swing * 0.5, y);
-  ctx.lineTo(x + w * 0.05 - swing * 0.5, y);
-  ctx.closePath();
-  ctx.fill();
-  // Back left
-  ctx.beginPath();
-  ctx.moveTo(x + w * 0.25, bodyY + h * 0.12);
-  ctx.lineTo(x + w * 0.18 + swing * 0.3, y);
-  ctx.lineTo(x + w * 0.35 + swing * 0.3, y);
-  ctx.closePath();
-  ctx.fill();
-  // Back right
-  ctx.beginPath();
-  ctx.moveTo(x + w * 0.4, bodyY + h * 0.1);
-  ctx.lineTo(x + w * 0.32 - swing * 0.4, y - 1);
-  ctx.lineTo(x + w * 0.48 - swing * 0.4, y - 1);
+  ctx.quadraticCurveTo(x - w * 0.35 + legSwing * 0.3, bodyY + h * 0.35, x - w * 0.4 + legSwing * 0.5, y - 2);
+  ctx.lineTo(x - w * 0.28 + legSwing * 0.4, y - 2);
+  ctx.quadraticCurveTo(x - w * 0.22, bodyY + h * 0.3, x - w * 0.18, bodyY + h * 0.12);
   ctx.closePath();
   ctx.fill();
 
-  // === Tail (curled like logo) ===
+  // Front right leg
   ctx.beginPath();
-  ctx.moveTo(x + w * 0.48, bodyY - h * 0.05);
-  ctx.quadraticCurveTo(x + w * 0.7, bodyY - h * 0.25, x + w * 0.62, bodyY + h * 0.1);
-  ctx.quadraticCurveTo(x + w * 0.55, bodyY - h * 0.05, x + w * 0.48, bodyY - h * 0.05);
+  ctx.moveTo(x - w * 0.05, bodyY + h * 0.18);
+  ctx.lineTo(x - w * 0.08 + legSwing2 * 0.4, y);
+  ctx.lineTo(x + w * 0.05 + legSwing2 * 0.3, y);
+  ctx.lineTo(x + w * 0.08, bodyY + h * 0.15);
+  ctx.closePath();
+  ctx.fill();
+
+  // Back legs
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.15, bodyY + h * 0.2);
+  ctx.lineTo(x + w * 0.22 - legSwing * 0.3, y);
+  ctx.lineTo(x + w * 0.35 - legSwing * 0.2, y);
+  ctx.lineTo(x + w * 0.32, bodyY + h * 0.18);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.35, bodyY + h * 0.15);
+  ctx.lineTo(x + w * 0.42 + legSwing2 * 0.25, y);
+  ctx.lineTo(x + w * 0.55 + legSwing2 * 0.2, y);
+  ctx.lineTo(x + w * 0.48, bodyY + h * 0.12);
+  ctx.closePath();
+  ctx.fill();
+
+  // Tail (curled like logo)
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.42, bodyY - h * 0.05);
+  ctx.quadraticCurveTo(x + w * 0.65, bodyY - h * 0.35, x + w * 0.55, bodyY - h * 0.15);
+  ctx.quadraticCurveTo(x + w * 0.7, bodyY + h * 0.05, x + w * 0.5, bodyY + h * 0.1);
+  ctx.quadraticCurveTo(x + w * 0.48, bodyY, x + w * 0.42, bodyY - h * 0.05);
   ctx.fill();
 }
 
