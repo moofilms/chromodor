@@ -37,6 +37,7 @@ const GROUND = 340;
 
 const GRAVITY = 0.65;
 const JUMP_V = -13.5;
+const DOUBLE_JUMP_V = -11.5;
 const PLAYER_X = 130;
 
 let state = 'start';
@@ -45,8 +46,11 @@ let highScore = parseInt(localStorage.getItem('chromodorHigh') || '0');
 let frame = 0;
 let speed = 6;
 let bulls = [];
+let eagles = [];
 let spawnTimer = 0;
+let eagleTimer = 0;
 let particles = [];
+let floatingTexts = [];
 
 const player = {
   x: PLAYER_X,
@@ -54,7 +58,9 @@ const player = {
   vy: 0,
   w: 20,
   h: 50,
-  grounded: true
+  grounded: true,
+  jumpsLeft: 2,
+  dodging: 0 // frames remaining of cape swing
 };
 
 function reset() {
@@ -62,11 +68,16 @@ function reset() {
   score = 0;
   speed = 6;
   bulls = [];
+  eagles = [];
   spawnTimer = 90;
+  eagleTimer = 180;
   particles = [];
+  floatingTexts = [];
   player.y = GROUND;
   player.vy = 0;
   player.grounded = true;
+  player.jumpsLeft = 2;
+  player.dodging = 0;
   frame = 0;
 }
 
@@ -75,16 +86,18 @@ function jump() {
     reset();
     return;
   }
-  if (player.grounded) {
-    player.vy = JUMP_V;
+  if (player.jumpsLeft > 0) {
+    player.vy = player.jumpsLeft === 2 ? JUMP_V : DOUBLE_JUMP_V;
+    player.jumpsLeft--;
     player.grounded = false;
-    for (let i = 0; i < 8; i++) {
+    // dust
+    for (let i = 0; i < 6; i++) {
       particles.push({
-        x: player.x + (Math.random()-0.5)*10,
-        y: GROUND,
+        x: player.x + (Math.random()-0.5)*12,
+        y: player.y,
         vx: (Math.random()-0.5)*4,
         vy: -Math.random()*3 - 1,
-        life: 25 + Math.random()*15
+        life: 20 + Math.random()*12
       });
     }
   }
@@ -103,55 +116,116 @@ canvas.addEventListener('touchstart', e => {
 }, {passive: false});
 
 function spawnBull() {
-  const size = 36 + Math.random() * 40;
+  const size = 36 + Math.random() * 36;
   bulls.push({
     x: W + 80,
     y: GROUND,
     w: size * 1.6,
     h: size,
-    speed: speed + Math.random() * 1.8
+    speed: speed + Math.random() * 1.8,
+    dodged: false
+  });
+}
+
+function spawnEagle() {
+  const yPos = 100 + Math.random() * 90; // mid-air
+  eagles.push({
+    x: W + 60,
+    y: yPos,
+    w: 50 + Math.random() * 20,
+    h: 28 + Math.random() * 10,
+    speed: speed * 0.9 + Math.random() * 2,
+    wingPhase: Math.random() * Math.PI * 2
   });
 }
 
 function update() {
   if (state !== 'playing') return;
   frame++;
-  score = Math.floor(frame / 4);
-  speed = 6 + Math.min(score * 0.012, 8);
+  // base score from survival
+  if (frame % 4 === 0) score++;
+  speed = 6 + Math.min(score * 0.008, 7);
 
+  // player physics
   player.vy += GRAVITY;
   player.y += player.vy;
   if (player.y >= GROUND) {
     player.y = GROUND;
     player.vy = 0;
     player.grounded = true;
+    player.jumpsLeft = 2;
   } else {
     player.grounded = false;
   }
+  if (player.dodging > 0) player.dodging--;
 
+  // spawn bulls
   spawnTimer--;
   if (spawnTimer <= 0) {
     spawnBull();
-    const interval = Math.max(40, 105 - score * 0.25) + Math.random() * 35;
+    const interval = Math.max(45, 110 - score * 0.2) + Math.random() * 40;
     spawnTimer = interval;
   }
 
+  // spawn eagles (less frequent)
+  eagleTimer--;
+  if (eagleTimer <= 0) {
+    spawnEagle();
+    eagleTimer = 200 + Math.random() * 150 - Math.min(score * 0.3, 80);
+  }
+
+  // bulls + dodge check
   for (let i = bulls.length - 1; i >= 0; i--) {
     const b = bulls[i];
     b.x -= b.speed;
-    if (b.x + b.w < -40) {
+    if (b.x + b.w < -50) {
       bulls.splice(i, 1);
       continue;
     }
-    const px = player.x - 7;
+
+    // hitboxes
+    const px = player.x - 8;
     const py = player.y - player.h + 5;
-    const pw = 14;
+    const pw = 16;
     const ph = player.h - 10;
     const bx = b.x - b.w * 0.4;
     const by = b.y - b.h + 8;
     const bw = b.w * 0.75;
     const bh = b.h * 0.85;
-    if (px < bx + bw && px + pw > bx && py < by + bh && py + ph > by) {
+
+    const colliding = px < bx + bw && px + pw > bx && py < by + bh && py + ph > by;
+
+    // DODGE / OLE mechanic: airborne + very close horizontally but not yet overlapping fatally
+    const distX = b.x - player.x;
+    const closeEnough = distX > -20 && distX < 70;
+    const isAirborne = !player.grounded;
+    if (!b.dodged && isAirborne && closeEnough && !colliding && player.y < GROUND - 30) {
+      // successful near-miss dodge!
+      b.dodged = true;
+      player.dodging = 25;
+      const bonus = 60 + Math.floor(Math.random() * 40);
+      score += bonus;
+      floatingTexts.push({
+        x: player.x + 20,
+        y: player.y - 60,
+        text: '¡OLE! +' + bonus,
+        life: 50,
+        vy: -1.2
+      });
+      // extra cape particles
+      for (let j = 0; j < 10; j++) {
+        particles.push({
+          x: player.x - 20 + Math.random() * 30,
+          y: player.y - 30,
+          vx: -2 - Math.random() * 3,
+          vy: (Math.random() - 0.5) * 3,
+          life: 20 + Math.random() * 15,
+          color: '#C41E3A'
+        });
+      }
+    }
+
+    if (colliding) {
       state = 'over';
       if (score > highScore) {
         highScore = score;
@@ -160,13 +234,49 @@ function update() {
     }
   }
 
+  // eagles
+  for (let i = eagles.length - 1; i >= 0; i--) {
+    const e = eagles[i];
+    e.x -= e.speed;
+    e.wingPhase += 0.25;
+    if (e.x + e.w < -40) {
+      eagles.splice(i, 1);
+      continue;
+    }
+    // collision with eagle
+    const px = player.x - 8;
+    const py = player.y - player.h + 5;
+    const pw = 16;
+    const ph = player.h - 10;
+    const ex = e.x - e.w * 0.3;
+    const ey = e.y - e.h * 0.5;
+    const ew = e.w * 0.7;
+    const eh = e.h * 0.8;
+    if (px < ex + ew && px + pw > ex && py < ey + eh && py + ph > ey) {
+      state = 'over';
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('chromodorHigh', highScore);
+      }
+    }
+  }
+
+  // particles
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.x += p.vx;
     p.y += p.vy;
-    p.vy += 0.2;
+    p.vy += 0.15;
     p.life--;
     if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // floating texts
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const t = floatingTexts[i];
+    t.y += t.vy;
+    t.life--;
+    if (t.life <= 0) floatingTexts.splice(i, 1);
   }
 }
 
@@ -207,15 +317,17 @@ function drawMatador() {
   const x = player.x;
   const y = player.y;
   const jumping = !player.grounded;
+  const isDodging = player.dodging > 0;
   drawShadow(x, GROUND, 38);
 
-  // Large dramatic red cape
+  // Cape - more dramatic when dodging
   ctx.fillStyle = '#C41E3A';
   ctx.beginPath();
-  const wave = Math.sin(frame * 0.22) * (jumping ? 14 : 9);
+  const wave = Math.sin(frame * 0.22) * (jumping || isDodging ? 16 : 9);
+  const capeExtend = isDodging ? 25 : 0;
   ctx.moveTo(x + 8, y - 52);
-  ctx.quadraticCurveTo(x - 8 + wave * 0.4, y - 75, x - 52 + wave, y - 48);
-  ctx.quadraticCurveTo(x - 70 + wave * 0.9, y - 12, x - 42 + wave * 0.5, y + 10);
+  ctx.quadraticCurveTo(x - 8 + wave * 0.4 - capeExtend, y - 75, x - 52 + wave - capeExtend, y - 48);
+  ctx.quadraticCurveTo(x - 70 + wave * 0.9 - capeExtend * 1.2, y - 12, x - 42 + wave * 0.5 - capeExtend, y + 10);
   ctx.quadraticCurveTo(x - 12, y - 2, x + 12, y - 14);
   ctx.lineTo(x + 10, y - 38);
   ctx.quadraticCurveTo(x + 6, y - 50, x + 8, y - 52);
@@ -259,20 +371,21 @@ function drawMatador() {
   ctx.quadraticCurveTo(x + 2, y - 96, x + 13, y - 75);
   ctx.fill();
 
-  // Arms
+  // Arms - more extended when dodging
   ctx.strokeStyle = '#111';
   ctx.lineWidth = 5;
   ctx.lineCap = 'round';
+  const armExtend = isDodging ? 12 : 0;
   ctx.beginPath();
   ctx.moveTo(x + 11, y - 48);
-  ctx.lineTo(x + 28, y - 34 + Math.sin(frame * 0.18) * 3);
+  ctx.lineTo(x + 28 + armExtend, y - 34 + Math.sin(frame * 0.18) * 3);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(x + 28, y - 34, 4.5, 0, Math.PI * 2);
+  ctx.arc(x + 28 + armExtend, y - 34, 4.5, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
   ctx.moveTo(x - 7, y - 46);
-  ctx.lineTo(x - 18, y - 32);
+  ctx.lineTo(x - 18 - armExtend * 0.5, y - 32);
   ctx.stroke();
 }
 
@@ -285,19 +398,19 @@ function drawBull(b) {
   const phase = frame * 0.35 + x * 0.008;
   drawShadow(x - w * 0.1, GROUND, w * 0.9);
 
-  ctx.fillStyle = '#C41E3A'; // solid red like the logo
+  ctx.fillStyle = '#C41E3A';
 
-  // Main body (muscular, logo-style)
+  // Main body
   ctx.beginPath();
   ctx.ellipse(x, bodyY, w * 0.48, h * 0.34, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Thick neck / shoulder
+  // Neck / shoulder
   ctx.beginPath();
   ctx.ellipse(x - w * 0.28, bodyY - h * 0.05, w * 0.28, h * 0.28, -0.3, 0, Math.PI * 2);
   ctx.fill();
 
-  // Head (aggressive, facing left)
+  // Head
   ctx.beginPath();
   ctx.ellipse(x - w * 0.52, bodyY - h * 0.08, w * 0.24, h * 0.22, -0.15, 0, Math.PI * 2);
   ctx.fill();
@@ -307,7 +420,7 @@ function drawBull(b) {
   ctx.ellipse(x - w * 0.68, bodyY - h * 0.02, w * 0.14, h * 0.12, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Large curved horns (logo style - upward and outward)
+  // Horns
   ctx.beginPath();
   ctx.moveTo(x - w * 0.48, bodyY - h * 0.22);
   ctx.quadraticCurveTo(x - w * 0.55, bodyY - h * 0.55, x - w * 0.35, bodyY - h * 0.65);
@@ -319,23 +432,21 @@ function drawBull(b) {
   ctx.quadraticCurveTo(x - w * 0.62, bodyY - h * 0.38, x - w * 0.55, bodyY - h * 0.25);
   ctx.fill();
 
-  // Eye (angry)
+  // Eye
   ctx.fillStyle = '#1a0505';
   ctx.beginPath();
   ctx.ellipse(x - w * 0.58, bodyY - h * 0.12, 3.5, 2.5, -0.3, 0, Math.PI * 2);
   ctx.fill();
-  // Eye highlight
   ctx.fillStyle = '#C41E3A';
   ctx.beginPath();
   ctx.arc(x - w * 0.57, bodyY - h * 0.13, 1.2, 0, Math.PI * 2);
   ctx.fill();
 
-  // Legs - dynamic charging pose with animation
+  // Legs
   ctx.fillStyle = '#C41E3A';
   const legSwing = Math.sin(phase) * 12;
   const legSwing2 = Math.sin(phase + Math.PI) * 10;
 
-  // Front left leg (raised / charging)
   ctx.beginPath();
   ctx.moveTo(x - w * 0.25, bodyY + h * 0.15);
   ctx.quadraticCurveTo(x - w * 0.35 + legSwing * 0.3, bodyY + h * 0.35, x - w * 0.4 + legSwing * 0.5, y - 2);
@@ -344,7 +455,6 @@ function drawBull(b) {
   ctx.closePath();
   ctx.fill();
 
-  // Front right leg
   ctx.beginPath();
   ctx.moveTo(x - w * 0.05, bodyY + h * 0.18);
   ctx.lineTo(x - w * 0.08 + legSwing2 * 0.4, y);
@@ -353,7 +463,6 @@ function drawBull(b) {
   ctx.closePath();
   ctx.fill();
 
-  // Back legs
   ctx.beginPath();
   ctx.moveTo(x + w * 0.15, bodyY + h * 0.2);
   ctx.lineTo(x + w * 0.22 - legSwing * 0.3, y);
@@ -370,12 +479,69 @@ function drawBull(b) {
   ctx.closePath();
   ctx.fill();
 
-  // Tail (curled like logo)
+  // Tail
   ctx.beginPath();
   ctx.moveTo(x + w * 0.42, bodyY - h * 0.05);
   ctx.quadraticCurveTo(x + w * 0.65, bodyY - h * 0.35, x + w * 0.55, bodyY - h * 0.15);
   ctx.quadraticCurveTo(x + w * 0.7, bodyY + h * 0.05, x + w * 0.5, bodyY + h * 0.1);
   ctx.quadraticCurveTo(x + w * 0.48, bodyY, x + w * 0.42, bodyY - h * 0.05);
+  ctx.fill();
+}
+
+function drawEagle(e) {
+  const x = e.x;
+  const y = e.y;
+  const w = e.w;
+  const h = e.h;
+  const wing = Math.sin(e.wingPhase) * 12;
+
+  // Wings
+  ctx.fillStyle = '#4a3728';
+  ctx.beginPath();
+  // left wing
+  ctx.moveTo(x, y);
+  ctx.quadraticCurveTo(x - w * 0.6, y - 15 - wing, x - w * 0.9, y + 5 + wing * 0.3);
+  ctx.quadraticCurveTo(x - w * 0.4, y + 8, x, y + 4);
+  ctx.fill();
+  // right wing
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.quadraticCurveTo(x + w * 0.6, y - 15 - wing, x + w * 0.9, y + 5 + wing * 0.3);
+  ctx.quadraticCurveTo(x + w * 0.4, y + 8, x, y + 4);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = '#3a2a1f';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2, w * 0.28, h * 0.45, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // White head (bald eagle)
+  ctx.fillStyle = '#f5f0e6';
+  ctx.beginPath();
+  ctx.ellipse(x - w * 0.22, y - 4, w * 0.16, h * 0.28, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Beak
+  ctx.fillStyle = '#e8a317';
+  ctx.beginPath();
+  ctx.moveTo(x - w * 0.35, y - 2);
+  ctx.lineTo(x - w * 0.48, y + 2);
+  ctx.lineTo(x - w * 0.32, y + 4);
+  ctx.fill();
+
+  // Eye
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.arc(x - w * 0.28, y - 6, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Tail feathers
+  ctx.fillStyle = '#4a3728';
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.2, y + 4);
+  ctx.lineTo(x + w * 0.4, y + 12);
+  ctx.lineTo(x + w * 0.15, y + 10);
   ctx.fill();
 }
 
@@ -387,20 +553,29 @@ function drawUI() {
   ctx.textAlign = 'right';
   ctx.fillText('High: ' + highScore, W - 18, 34);
 
+  // jumps indicator
+  if (state === 'playing') {
+    ctx.textAlign = 'left';
+    ctx.font = '16px system-ui';
+    ctx.fillStyle = player.jumpsLeft > 0 ? '#1a1a1a' : '#888';
+    ctx.fillText('Jumps: ' + player.jumpsLeft, 18, 58);
+  }
+
   if (state === 'start') {
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 52px system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText('Chromodor', W/2, H/2 - 55);
-    ctx.font = '22px system-ui';
-    ctx.fillText('A matador dodging charging bulls', W/2, H/2 - 5);
-    ctx.font = '18px system-ui';
-    ctx.fillText('Press SPACE / Click / Tap to start & jump', W/2, H/2 + 45);
+    ctx.fillText('Chromodor', W/2, H/2 - 80);
+    ctx.font = '20px system-ui';
+    ctx.fillText('Dodge charging bulls & flying eagles!', W/2, H/2 - 35);
+    ctx.font = '16px system-ui';
+    ctx.fillText('Double jump available  •  Near-miss bulls for ¡OLE! bonus', W/2, H/2);
+    ctx.fillText('SPACE / Click / Tap to jump (risky timing = big points)', W/2, H/2 + 30);
     ctx.fillStyle = '#FFD700';
-    ctx.font = 'bold 28px system-ui';
-    ctx.fillText('\u00a1Ol\u00e9!', W/2, H/2 + 95);
+    ctx.font = 'bold 26px system-ui';
+    ctx.fillText('¡Olé!', W/2, H/2 + 80);
   }
 
   if (state === 'over') {
@@ -409,7 +584,7 @@ function drawUI() {
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 46px system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText('\u00a1Ay!', W/2, H/2 - 50);
+    ctx.fillText('¡Ay!', W/2, H/2 - 50);
     ctx.font = '26px system-ui';
     ctx.fillText('Score: ' + score, W/2, H/2 + 5);
     if (score >= highScore && score > 0) {
@@ -425,10 +600,21 @@ function drawUI() {
 
 function drawParticles() {
   particles.forEach(p => {
-    ctx.fillStyle = `rgba(160,120,60,${Math.max(0, p.life/35)})`;
+    ctx.fillStyle = p.color || `rgba(160,120,60,${Math.max(0, p.life/35)})`;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 2.5 + (30-p.life)/15, 0, Math.PI*2);
+    ctx.arc(p.x, p.y, 2.5 + (25 - p.life)/12, 0, Math.PI * 2);
     ctx.fill();
+  });
+}
+
+function drawFloatingTexts() {
+  floatingTexts.forEach(t => {
+    ctx.globalAlpha = Math.min(1, t.life / 20);
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 22px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(t.text, t.x, t.y);
+    ctx.globalAlpha = 1;
   });
 }
 
@@ -437,8 +623,10 @@ function loop() {
   ctx.clearRect(0, 0, W, H);
   drawGround();
   bulls.forEach(drawBull);
+  eagles.forEach(drawEagle);
   drawMatador();
   drawParticles();
+  drawFloatingTexts();
   drawUI();
   requestAnimationFrame(loop);
 }
