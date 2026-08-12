@@ -47,7 +47,7 @@ let speed = 6;
 let bulls = [];
 let eagles = [];
 let spawnTimer = 0;
-let eagleTimer = 180;
+let eagleTimer = 220;
 let particles = [];
 let floatTexts = [];
 
@@ -56,10 +56,11 @@ const player = {
   y: GROUND,
   vy: 0,
   w: 20,
-  h: 50,
+  h: 55,
   grounded: true,
   jumpsLeft: 2,
-  capeSwing: 0
+  spinning: 0, // frames of spin-past animation
+  spinAngle: 0
 };
 
 function reset() {
@@ -69,23 +70,68 @@ function reset() {
   bulls = [];
   eagles = [];
   spawnTimer = 90;
-  eagleTimer = 200;
+  eagleTimer = 250;
   particles = [];
   floatTexts = [];
   player.y = GROUND;
   player.vy = 0;
   player.grounded = true;
   player.jumpsLeft = 2;
-  player.capeSwing = 0;
+  player.spinning = 0;
+  player.spinAngle = 0;
   frame = 0;
 }
 
-function jump() {
+function tryDodgeOrJump() {
   if (state === 'start' || state === 'over') {
     reset();
     return;
   }
-  if (player.jumpsLeft > 0) {
+
+  // Check for tight "right next to bull" dodge opportunity first
+  let canDodge = false;
+  let targetBull = null;
+  for (const b of bulls) {
+    if (b.dodged) continue;
+    const dist = b.x - player.x;
+    // very tight window: bull is right next to the matador
+    if (dist > 10 && dist < 85 && player.grounded) {
+      canDodge = true;
+      targetBull = b;
+      break;
+    }
+  }
+
+  if (canDodge && targetBull) {
+    // SPIN PAST - no jump
+    targetBull.dodged = true;
+    player.spinning = 28;
+    player.spinAngle = 0;
+    player.vy = 0; // stay grounded / no jump
+    score += 100;
+    floatTexts.push({
+      text: 'Olé! +100',
+      x: player.x + 30,
+      y: player.y - 80,
+      life: 55,
+      color: '#FFD700'
+    });
+    // celebratory particles
+    for (let k = 0; k < 14; k++) {
+      particles.push({
+        x: player.x,
+        y: player.y - 40,
+        vx: (Math.random() - 0.5) * 8,
+        vy: (Math.random() - 0.5) * 6 - 2,
+        life: 30 + Math.random() * 15,
+        color: '#C41E3A'
+      });
+    }
+    return;
+  }
+
+  // Normal jump / double jump
+  if (player.jumpsLeft > 0 && player.spinning <= 0) {
     const isSecond = player.jumpsLeft === 1;
     player.vy = JUMP_V * (isSecond ? 0.88 : 1);
     player.jumpsLeft--;
@@ -105,13 +151,13 @@ function jump() {
 window.addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'ArrowUp') {
     e.preventDefault();
-    jump();
+    tryDodgeOrJump();
   }
 });
-canvas.addEventListener('mousedown', jump);
+canvas.addEventListener('mousedown', tryDodgeOrJump);
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
-  jump();
+  tryDodgeOrJump();
 }, {passive: false});
 
 function spawnBull() {
@@ -127,6 +173,10 @@ function spawnBull() {
 }
 
 function spawnEagle() {
+  // Only spawn if no bulls are currently near the right side of the screen
+  const bullNearRight = bulls.some(b => b.x > W - 200);
+  if (bullNearRight || bulls.length > 1) return; // never with bulls
+
   eagles.push({
     x: W + 60,
     y: 140 + Math.random() * 90,
@@ -139,34 +189,44 @@ function spawnEagle() {
 function update() {
   if (state !== 'playing') return;
   frame++;
-  score = Math.floor(frame / 4);
-  speed = 6 + Math.min(score * 0.012, 8);
+  if (frame % 4 === 0) score++;
+  speed = 6 + Math.min(score * 0.008, 7);
 
-  player.vy += GRAVITY;
-  player.y += player.vy;
-  if (player.y >= GROUND) {
-    player.y = GROUND;
+  // spin animation
+  if (player.spinning > 0) {
+    player.spinning--;
+    player.spinAngle += 0.45;
     player.vy = 0;
-    player.grounded = true;
-    player.jumpsLeft = 2;
+    player.y = GROUND; // stay on ground while spinning past
   } else {
-    player.grounded = false;
+    player.vy += GRAVITY;
+    player.y += player.vy;
+    if (player.y >= GROUND) {
+      player.y = GROUND;
+      player.vy = 0;
+      player.grounded = true;
+      player.jumpsLeft = 2;
+    } else {
+      player.grounded = false;
+    }
   }
-  if (player.capeSwing > 0) player.capeSwing--;
 
+  // spawn bulls
   spawnTimer--;
   if (spawnTimer <= 0) {
     spawnBull();
-    const interval = Math.max(40, 105 - score * 0.25) + Math.random() * 35;
+    const interval = Math.max(45, 110 - score * 0.2) + Math.random() * 40;
     spawnTimer = interval;
   }
 
+  // spawn eagles only when safe (no bulls near)
   eagleTimer--;
   if (eagleTimer <= 0) {
     spawnEagle();
-    eagleTimer = 160 + Math.random() * 180 - Math.min(score * 0.4, 60);
+    eagleTimer = 220 + Math.random() * 160;
   }
 
+  // bulls
   for (let i = bulls.length - 1; i >= 0; i--) {
     const b = bulls[i];
     b.x -= b.speed;
@@ -174,6 +234,8 @@ function update() {
       bulls.splice(i, 1);
       continue;
     }
+
+    if (player.spinning > 0) continue; // invulnerable while spinning past
 
     const px = player.x - 8;
     const py = player.y - player.h + 6;
@@ -185,34 +247,8 @@ function update() {
     const bw = b.w * 0.72;
     const bh = b.h * 0.82;
 
-    const dx = (b.x - b.w * 0.2) - player.x;
-    if (!player.grounded && !b.dodged && dx > -15 && dx < 70) {
-      if (py + ph < by + 18) {
-        b.dodged = true;
-        const bonus = 75 + Math.floor(Math.random() * 40);
-        score += bonus;
-        player.capeSwing = 45;
-        floatTexts.push({
-          text: '+'+bonus+' \u00a1OLE!',
-          x: player.x + 20,
-          y: player.y - 70,
-          life: 50,
-          color: '#FFD700'
-        });
-        for (let k = 0; k < 10; k++) {
-          particles.push({
-            x: player.x,
-            y: player.y - 30,
-            vx: (Math.random()-0.5)*6,
-            vy: (Math.random()-0.5)*5 - 2,
-            life: 25 + Math.random()*15
-          });
-        }
-      }
-    }
-
     if (px < bx + bw && px + pw > bx && py < by + bh && py + ph > by) {
-      if (!b.dodged || (px + pw > bx + 25)) {
+      if (!b.dodged) {
         state = 'over';
         if (score > highScore) {
           highScore = score;
@@ -222,6 +258,7 @@ function update() {
     }
   }
 
+  // eagles
   for (let i = eagles.length - 1; i >= 0; i--) {
     const e = eagles[i];
     e.x -= e.speed;
@@ -229,6 +266,8 @@ function update() {
       eagles.splice(i, 1);
       continue;
     }
+    if (player.spinning > 0) continue;
+
     const px = player.x - 8;
     const py = player.y - player.h + 6;
     const pw = 16;
@@ -250,14 +289,14 @@ function update() {
     const p = particles[i];
     p.x += p.vx;
     p.y += p.vy;
-    p.vy += 0.18;
+    p.vy += 0.15;
     p.life--;
     if (p.life <= 0) particles.splice(i, 1);
   }
 
   for (let i = floatTexts.length - 1; i >= 0; i--) {
     const t = floatTexts[i];
-    t.y -= 1.2;
+    t.y -= 1.1;
     t.life--;
     if (t.life <= 0) floatTexts.splice(i, 1);
   }
@@ -300,30 +339,36 @@ function drawMatador() {
   const x = player.x;
   const y = player.y;
   const jumping = !player.grounded;
-  const swing = player.capeSwing > 0;
+  const spinning = player.spinning > 0;
+
   drawShadow(x, GROUND, 40);
 
-  // === LARGE RED CAPE matching the logo (big curved billowing shape from raised arm) ===
+  ctx.save();
+  if (spinning) {
+    // spin around center
+    ctx.translate(x, y - 40);
+    ctx.rotate(player.spinAngle);
+    ctx.translate(-x, -(y - 40));
+  }
+
+  // Large red cape
   ctx.fillStyle = '#C41E3A';
   ctx.beginPath();
-  const wave = Math.sin(frame * 0.2) * (jumping ? 10 : 6) + (swing ? Math.sin(frame * 0.45) * 20 : 0);
-  const raise = swing ? 12 : 0;
-  // Cape starts from raised hand and sweeps in a big arc to the left (logo style)
-  ctx.moveTo(x + 4, y - 78 - raise); // near raised hand
-  ctx.quadraticCurveTo(x - 30 + wave * 0.5, y - 95 - raise, x - 70 + wave, y - 55); // high left peak
-  ctx.quadraticCurveTo(x - 95 + wave * 1.1, y - 10, x - 55 + wave * 0.6, y + 15); // bottom sweep
-  ctx.quadraticCurveTo(x - 15, y + 5, x + 8, y - 25); // back toward body
+  const wave = Math.sin(frame * 0.2) * (jumping || spinning ? 12 : 6);
+  const raise = spinning ? 15 : 0;
+  ctx.moveTo(x + 4, y - 78 - raise);
+  ctx.quadraticCurveTo(x - 30 + wave * 0.5, y - 95 - raise, x - 70 + wave, y - 55);
+  ctx.quadraticCurveTo(x - 95 + wave * 1.1, y - 10, x - 55 + wave * 0.6, y + 15);
+  ctx.quadraticCurveTo(x - 15, y + 5, x + 8, y - 25);
   ctx.lineTo(x + 6, y - 55);
   ctx.quadraticCurveTo(x + 2, y - 70, x + 4, y - 78 - raise);
   ctx.closePath();
   ctx.fill();
 
-  // === BLACK SILHOUETTE BODY (logo style upright pose) ===
+  // Body
   ctx.fillStyle = '#0a0a0a';
 
-  // Legs with subtle run
-  const legSwing = jumping ? 0 : Math.sin(frame * 0.38) * 8;
-  // Back leg
+  const legSwing = (jumping || spinning) ? 0 : Math.sin(frame * 0.38) * 8;
   ctx.beginPath();
   ctx.moveTo(x - 6, y - 28);
   ctx.lineTo(x - 14 - legSwing * 0.7, y);
@@ -331,7 +376,6 @@ function drawMatador() {
   ctx.lineTo(x + 2, y - 28);
   ctx.closePath();
   ctx.fill();
-  // Front leg
   ctx.beginPath();
   ctx.moveTo(x + 2, y - 28);
   ctx.lineTo(x + 10 + legSwing, y);
@@ -340,7 +384,6 @@ function drawMatador() {
   ctx.closePath();
   ctx.fill();
 
-  // Torso (lean elegant silhouette)
   ctx.beginPath();
   ctx.moveTo(x - 11, y - 30);
   ctx.lineTo(x - 13, y - 62);
@@ -349,7 +392,7 @@ function drawMatador() {
   ctx.closePath();
   ctx.fill();
 
-  // Raised arm (logo style - high)
+  // Raised arm
   ctx.beginPath();
   ctx.moveTo(x + 6, y - 58);
   ctx.lineTo(x + 8, y - 82 - raise);
@@ -357,12 +400,10 @@ function drawMatador() {
   ctx.lineTo(x + 14, y - 55);
   ctx.closePath();
   ctx.fill();
-  // Fist
   ctx.beginPath();
   ctx.arc(x + 13, y - 84 - raise, 6, 0, Math.PI * 2);
   ctx.fill();
 
-  // Other arm (holding lower cape / sword side)
   ctx.beginPath();
   ctx.moveTo(x - 8, y - 52);
   ctx.lineTo(x - 22, y - 38);
@@ -371,32 +412,29 @@ function drawMatador() {
   ctx.closePath();
   ctx.fill();
 
-  // Head
   ctx.beginPath();
   ctx.arc(x + 1, y - 72, 11, 0, Math.PI * 2);
   ctx.fill();
 
-  // Classic montera / hat (logo style)
   ctx.beginPath();
   ctx.ellipse(x + 1, y - 84, 15, 7, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Top of hat
   ctx.beginPath();
   ctx.moveTo(x - 10, y - 86);
   ctx.quadraticCurveTo(x + 1, y - 105, x + 12, y - 86);
   ctx.fill();
 
-  // Sword suggestion at hip (logo detail)
   ctx.strokeStyle = '#0a0a0a';
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(x + 10, y - 35);
   ctx.lineTo(x + 22, y - 18);
   ctx.stroke();
-  // hilt
   ctx.beginPath();
   ctx.arc(x + 11, y - 36, 3, 0, Math.PI * 2);
   ctx.fill();
+
+  ctx.restore();
 }
 
 function drawBull(b) {
@@ -409,23 +447,18 @@ function drawBull(b) {
   drawShadow(x - w * 0.1, GROUND, w * 0.9);
 
   ctx.fillStyle = '#C41E3A';
-
   ctx.beginPath();
   ctx.ellipse(x, bodyY, w * 0.48, h * 0.34, 0, 0, Math.PI * 2);
   ctx.fill();
-
   ctx.beginPath();
   ctx.ellipse(x - w * 0.28, bodyY - h * 0.05, w * 0.28, h * 0.28, -0.3, 0, Math.PI * 2);
   ctx.fill();
-
   ctx.beginPath();
   ctx.ellipse(x - w * 0.52, bodyY - h * 0.08, w * 0.24, h * 0.22, -0.15, 0, Math.PI * 2);
   ctx.fill();
-
   ctx.beginPath();
   ctx.ellipse(x - w * 0.68, bodyY - h * 0.02, w * 0.14, h * 0.12, 0, 0, Math.PI * 2);
   ctx.fill();
-
   ctx.beginPath();
   ctx.moveTo(x - w * 0.48, bodyY - h * 0.22);
   ctx.quadraticCurveTo(x - w * 0.55, bodyY - h * 0.55, x - w * 0.35, bodyY - h * 0.65);
@@ -436,7 +469,6 @@ function drawBull(b) {
   ctx.quadraticCurveTo(x - w * 0.72, bodyY - h * 0.6, x - w * 0.58, bodyY - h * 0.7);
   ctx.quadraticCurveTo(x - w * 0.62, bodyY - h * 0.38, x - w * 0.55, bodyY - h * 0.25);
   ctx.fill();
-
   ctx.fillStyle = '#1a0505';
   ctx.beginPath();
   ctx.ellipse(x - w * 0.58, bodyY - h * 0.12, 3.5, 2.5, -0.3, 0, Math.PI * 2);
@@ -445,11 +477,9 @@ function drawBull(b) {
   ctx.beginPath();
   ctx.arc(x - w * 0.57, bodyY - h * 0.13, 1.2, 0, Math.PI * 2);
   ctx.fill();
-
   ctx.fillStyle = '#C41E3A';
   const legSwing = Math.sin(phase) * 12;
   const legSwing2 = Math.sin(phase + Math.PI) * 10;
-
   ctx.beginPath();
   ctx.moveTo(x - w * 0.25, bodyY + h * 0.15);
   ctx.quadraticCurveTo(x - w * 0.35 + legSwing * 0.3, bodyY + h * 0.35, x - w * 0.4 + legSwing * 0.5, y - 2);
@@ -457,7 +487,6 @@ function drawBull(b) {
   ctx.quadraticCurveTo(x - w * 0.22, bodyY + h * 0.3, x - w * 0.18, bodyY + h * 0.12);
   ctx.closePath();
   ctx.fill();
-
   ctx.beginPath();
   ctx.moveTo(x - w * 0.05, bodyY + h * 0.18);
   ctx.lineTo(x - w * 0.08 + legSwing2 * 0.4, y);
@@ -465,7 +494,6 @@ function drawBull(b) {
   ctx.lineTo(x + w * 0.08, bodyY + h * 0.15);
   ctx.closePath();
   ctx.fill();
-
   ctx.beginPath();
   ctx.moveTo(x + w * 0.15, bodyY + h * 0.2);
   ctx.lineTo(x + w * 0.22 - legSwing * 0.3, y);
@@ -473,7 +501,6 @@ function drawBull(b) {
   ctx.lineTo(x + w * 0.32, bodyY + h * 0.18);
   ctx.closePath();
   ctx.fill();
-
   ctx.beginPath();
   ctx.moveTo(x + w * 0.35, bodyY + h * 0.15);
   ctx.lineTo(x + w * 0.42 + legSwing2 * 0.25, y);
@@ -481,7 +508,6 @@ function drawBull(b) {
   ctx.lineTo(x + w * 0.48, bodyY + h * 0.12);
   ctx.closePath();
   ctx.fill();
-
   ctx.beginPath();
   ctx.moveTo(x + w * 0.42, bodyY - h * 0.05);
   ctx.quadraticCurveTo(x + w * 0.65, bodyY - h * 0.35, x + w * 0.55, bodyY - h * 0.15);
@@ -494,7 +520,6 @@ function drawEagle(e) {
   const x = e.x;
   const y = e.y;
   const flap = Math.sin(frame * 0.35 + x * 0.02) * 12;
-
   ctx.fillStyle = '#3d2b1f';
   ctx.beginPath();
   ctx.ellipse(x - 8, y + flap * 0.3, 22, 8 + Math.abs(flap)*0.3, -0.4 + flap*0.02, 0, Math.PI*2);
@@ -502,29 +527,24 @@ function drawEagle(e) {
   ctx.beginPath();
   ctx.ellipse(x + 18, y - flap * 0.3, 22, 8 + Math.abs(flap)*0.3, 0.4 - flap*0.02, 0, Math.PI*2);
   ctx.fill();
-
   ctx.fillStyle = '#2a1c14';
   ctx.beginPath();
   ctx.ellipse(x + 5, y, 18, 10, 0, 0, Math.PI*2);
   ctx.fill();
-
   ctx.fillStyle = '#f5f5f0';
   ctx.beginPath();
   ctx.arc(x - 12, y - 2, 9, 0, Math.PI*2);
   ctx.fill();
-
   ctx.fillStyle = '#e8a020';
   ctx.beginPath();
   ctx.moveTo(x - 20, y - 1);
   ctx.lineTo(x - 28, y + 3);
   ctx.lineTo(x - 18, y + 4);
   ctx.fill();
-
   ctx.fillStyle = '#111';
   ctx.beginPath();
   ctx.arc(x - 14, y - 4, 2, 0, Math.PI*2);
   ctx.fill();
-
   ctx.fillStyle = '#3d2b1f';
   ctx.beginPath();
   ctx.moveTo(x + 18, y);
@@ -542,30 +562,29 @@ function drawUI() {
   ctx.fillText('High: ' + highScore, W - 18, 34);
 
   floatTexts.forEach(t => {
-    ctx.globalAlpha = Math.min(1, t.life / 20);
+    ctx.globalAlpha = Math.min(1, t.life / 25);
     ctx.fillStyle = t.color;
-    ctx.font = 'bold 20px system-ui';
+    ctx.font = 'bold 26px system-ui';
     ctx.textAlign = 'center';
     ctx.fillText(t.text, t.x, t.y);
     ctx.globalAlpha = 1;
   });
 
   if (state === 'start') {
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 52px system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText('Chromodor', W/2, H/2 - 80);
-    ctx.font = '20px system-ui';
-    ctx.fillText('Matador vs Bulls & Eagles', W/2, H/2 - 35);
-    ctx.font = '16px system-ui';
-    ctx.fillText('Space / Click = Jump (double jump available)', W/2, H/2 + 5);
-    ctx.fillText('Jump right next to a bull for cape-swing OLE! (bonus)', W/2, H/2 + 30);
-    ctx.fillText('Avoid the flying bald eagles!', W/2, H/2 + 55);
+    ctx.fillText('Chromodor', W/2, H/2 - 90);
+    ctx.font = '18px system-ui';
+    ctx.fillText('Space / Click next to a bull = Spin past for Olé! +100',
+                 W/2, H/2 - 40);
+    ctx.fillText('Double jump available  •  Avoid eagles',
+                 W/2, H/2 - 10);
     ctx.fillStyle = '#FFD700';
-    ctx.font = 'bold 26px system-ui';
-    ctx.fillText('\u00a1Ol\u00e9!', W/2, H/2 + 100);
+    ctx.font = 'bold 28px system-ui';
+    ctx.fillText('¡Olé!', W/2, H/2 + 50);
   }
 
   if (state === 'over') {
@@ -574,7 +593,7 @@ function drawUI() {
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 46px system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText('\u00a1Ay!', W/2, H/2 - 50);
+    ctx.fillText('¡Ay!', W/2, H/2 - 50);
     ctx.font = '26px system-ui';
     ctx.fillText('Score: ' + score, W/2, H/2 + 5);
     if (score >= highScore && score > 0) {
@@ -590,9 +609,9 @@ function drawUI() {
 
 function drawParticles() {
   particles.forEach(p => {
-    ctx.fillStyle = `rgba(160,120,60,${Math.max(0, p.life/35)})`;
+    ctx.fillStyle = p.color || `rgba(160,120,60,${Math.max(0, p.life/35)})`;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 2.5 + (30-p.life)/15, 0, Math.PI*2);
+    ctx.arc(p.x, p.y, 2.5 + (25 - p.life)/12, 0, Math.PI * 2);
     ctx.fill();
   });
 }
