@@ -155,11 +155,11 @@ canvas.addEventListener('touchstart', e => {
 function spawnBull() {
   const size = 48 + Math.random() * 24;
   bulls.push({
-    x: W + 90,
+    x: W + 80,
     y: GROUND,
-    w: size * 1.6,
+    w: size * 1.55,
     h: size,
-    speed: speed + Math.random() * 1.5,
+    speed: speed + Math.random() * 1.8,
     dodged: false
   });
 }
@@ -213,7 +213,7 @@ function update() {
   spawnTimer--;
   if (spawnTimer <= 0) {
     spawnBull();
-    const interval = Math.max(45, 110 - score * 0.25) + Math.random() * 30;
+    const interval = Math.max(40, 105 - score * 0.25) + Math.random() * 35;
     spawnTimer = interval;
   }
 
@@ -226,7 +226,7 @@ function update() {
   for (let i = bulls.length - 1; i >= 0; i--) {
     const b = bulls[i];
     b.x -= b.speed;
-    if (b.x + b.w < -60) {
+    if (b.x + b.w < -50) {
       bulls.splice(i, 1);
       continue;
     }
@@ -331,7 +331,7 @@ function drawMatador() {
   const jumping = !player.grounded && player.spinning <= 0;
   const swing = player.capeSwing > 0;
   const spinning = player.spinning > 0;
-  drawShadow(x + 5, GROUND, 42);
+  drawShadow(x + 5, GROUND, 45);
 
   ctx.save();
   if (spinning) {
@@ -340,93 +340,93 @@ function drawMatador() {
     ctx.translate(-x, -(y - 45));
   }
 
-  // RED CAPE - large logo-style arc from raised hand
+  // LARGE RED CAPE - logo style big arc
   ctx.fillStyle = '#C41E3A';
-  const wave = Math.sin(frame * 0.18) * (jumping ? 8 : 5) + (swing || spinning ? 14 : 0);
-  const raise = (swing || spinning) ? 12 : 0;
+  const wave = Math.sin(frame * 0.18) * (jumping ? 6 : 4) + (swing || spinning ? 12 : 0);
+  const raise = (swing || spinning) ? 8 : 0;
   ctx.beginPath();
-  ctx.moveTo(x + 8, y - 92 - raise);
-  ctx.bezierCurveTo(x - 15 + wave, y - 115 - raise, x - 75 + wave, y - 75, x - 100 + wave * 0.7, y - 25);
-  ctx.bezierCurveTo(x - 80, y + 20, x - 25, y + 15, x + 12, y - 18);
-  ctx.lineTo(x + 10, y - 55);
-  ctx.quadraticCurveTo(x + 6, y - 80, x + 8, y - 92 - raise);
+  ctx.moveTo(x + 8, y - 85 - raise);
+  ctx.bezierCurveTo(x - 20 + wave*0.3, y - 105 - raise, x - 75 + wave, y - 60, x - 100 + wave*0.7, y - 5);
+  ctx.bezierCurveTo(x - 80 + wave*0.4, y + 20, x - 25, y + 12, x + 12, y - 18);
+  ctx.lineTo(x + 10, y - 48);
+  ctx.quadraticCurveTo(x + 6, y - 72, x + 8, y - 85 - raise);
   ctx.closePath();
   ctx.fill();
 
   // BLACK BODY
-  ctx.fillStyle = '#111';
+  ctx.fillStyle = '#0a0a0a';
 
   // Legs
   const leg = jumping ? 0 : Math.sin(frame * 0.36) * 6;
   ctx.beginPath();
   ctx.moveTo(x - 4, y - 30);
-  ctx.lineTo(x - 11 - leg, y);
-  ctx.lineTo(x - 1 - leg * 0.5, y);
+  ctx.lineTo(x - 11 - leg*0.5, y);
+  ctx.lineTo(x - 1 - leg*0.3, y);
   ctx.lineTo(x + 4, y - 30);
   ctx.closePath();
   ctx.fill();
   ctx.beginPath();
   ctx.moveTo(x + 4, y - 30);
   ctx.lineTo(x + 12 + leg, y);
-  ctx.lineTo(x + 20 + leg * 0.5, y);
-  ctx.lineTo(x + 12, y - 30);
+  ctx.lineTo(x + 21 + leg*0.4, y);
+  ctx.lineTo(x + 13, y - 30);
   ctx.closePath();
   ctx.fill();
 
   // Torso
   ctx.beginPath();
-  ctx.moveTo(x - 11, y - 32);
-  ctx.lineTo(x - 13, y - 70);
-  ctx.lineTo(x + 14, y - 70);
-  ctx.lineTo(x + 12, y - 32);
+  ctx.moveTo(x - 9, y - 30);
+  ctx.lineTo(x - 11, y - 65);
+  ctx.lineTo(x + 15, y - 65);
+  ctx.lineTo(x + 13, y - 30);
   ctx.closePath();
   ctx.fill();
 
   // Raised arm + fist
   ctx.beginPath();
-  ctx.moveTo(x + 9, y - 64);
-  ctx.lineTo(x + 11, y - 96 - raise);
-  ctx.lineTo(x + 22, y - 94 - raise);
-  ctx.lineTo(x + 18, y - 60);
+  ctx.moveTo(x + 9, y - 60);
+  ctx.lineTo(x + 11, y - 90 - raise);
+  ctx.lineTo(x + 22, y - 88 - raise);
+  ctx.lineTo(x + 18, y - 56);
   ctx.closePath();
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(x + 17, y - 99 - raise, 7, 0, Math.PI * 2);
+  ctx.arc(x + 17, y - 93 - raise, 7.5, 0, Math.PI*2);
   ctx.fill();
 
   // Lower arm
   ctx.beginPath();
-  ctx.moveTo(x - 7, y - 58);
-  ctx.lineTo(x - 22, y - 42);
-  ctx.lineTo(x - 15, y - 36);
-  ctx.lineTo(x - 3, y - 54);
+  ctx.moveTo(x - 5, y - 55);
+  ctx.lineTo(x - 18, y - 40);
+  ctx.lineTo(x - 12, y - 34);
+  ctx.lineTo(x - 1, y - 52);
   ctx.closePath();
   ctx.fill();
 
   // Head
   ctx.beginPath();
-  ctx.arc(x + 2, y - 80, 12, 0, Math.PI * 2);
+  ctx.arc(x + 3, y - 76, 12, 0, Math.PI*2);
   ctx.fill();
 
   // Hat
   ctx.beginPath();
-  ctx.ellipse(x + 2, y - 92, 17, 8, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + 3, y - 88, 16, 8, 0, 0, Math.PI*2);
   ctx.fill();
   ctx.beginPath();
-  ctx.moveTo(x - 11, y - 94);
-  ctx.quadraticCurveTo(x + 2, y - 114, x + 15, y - 94);
+  ctx.moveTo(x - 9, y - 90);
+  ctx.quadraticCurveTo(x + 3, y - 110, x + 15, y - 90);
   ctx.fill();
 
   // Sword
-  ctx.strokeStyle = '#111';
+  ctx.strokeStyle = '#0a0a0a';
   ctx.lineWidth = 3.5;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(x + 13, y - 38);
-  ctx.lineTo(x + 26, y - 16);
+  ctx.moveTo(x + 13, y - 36);
+  ctx.lineTo(x + 25, y - 16);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(x + 14, y - 39, 3.5, 0, Math.PI * 2);
+  ctx.arc(x + 14, y - 37, 3.5, 0, Math.PI*2);
   ctx.fill();
 
   ctx.restore();
@@ -435,112 +435,95 @@ function drawMatador() {
 function drawBull(b) {
   const x = b.x;
   const y = b.y;
-  const s = b.h / 60;
-  drawShadow(x - 5, GROUND, b.w * 0.9);
+  const w = b.w;
+  const h = b.h;
+  const by = y - h * 0.38;
+  drawShadow(x, GROUND, w * 0.8);
 
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(s, s);
+  ctx.fillStyle = '#0a0a0a';
 
-  // SOLID BLACK BULL - logo style charging silhouette (facing left)
-  ctx.fillStyle = '#111';
-
-  // Body
+  // Body - muscular oval
   ctx.beginPath();
-  ctx.ellipse(5, -30, 34, 24, 0.05, 0, Math.PI * 2);
+  ctx.ellipse(x + w*0.08, by, w*0.4, h*0.3, 0.08, 0, Math.PI*2);
   ctx.fill();
 
-  // Shoulder hump
+  // Shoulder / chest mass
   ctx.beginPath();
-  ctx.ellipse(-20, -38, 20, 20, -0.3, 0, Math.PI * 2);
+  ctx.ellipse(x - w*0.18, by - h*0.06, w*0.3, h*0.26, -0.4, 0, Math.PI*2);
   ctx.fill();
 
   // Head
   ctx.beginPath();
-  ctx.ellipse(-42, -34, 17, 15, -0.15, 0, Math.PI * 2);
+  ctx.ellipse(x - w*0.45, by - h*0.08, w*0.2, h*0.18, -0.25, 0, Math.PI*2);
   ctx.fill();
 
   // Snout
   ctx.beginPath();
-  ctx.ellipse(-56, -28, 11, 9, 0, 0, Math.PI * 2);
+  ctx.ellipse(x - w*0.62, by, w*0.12, h*0.1, 0, 0, Math.PI*2);
   ctx.fill();
 
-  // HORNS - large curved upward (clearly horns, not ears)
-  // Outer horn
+  // THICK HORNS (logo style - short, thick, upward curve)
+  // Horn 1
   ctx.beginPath();
-  ctx.moveTo(-40, -45);
-  ctx.bezierCurveTo(-55, -70, -35, -85, -20, -78);
-  ctx.bezierCurveTo(-28, -65, -35, -52, -40, -45);
+  ctx.moveTo(x - w*0.38, by - h*0.2);
+  ctx.bezierCurveTo(x - w*0.48, by - h*0.45, x - w*0.28, by - h*0.55, x - w*0.22, by - h*0.48);
+  ctx.bezierCurveTo(x - w*0.3, by - h*0.35, x - w*0.35, by - h*0.25, x - w*0.38, by - h*0.2);
   ctx.fill();
-  // Inner horn
+  // Horn 2
   ctx.beginPath();
-  ctx.moveTo(-50, -42);
-  ctx.bezierCurveTo(-70, -68, -58, -90, -42, -85);
-  ctx.bezierCurveTo(-48, -70, -52, -52, -50, -42);
-  ctx.fill();
-
-  // Eye
-  ctx.fillStyle = '#333';
-  ctx.beginPath();
-  ctx.ellipse(-48, -38, 3.5, 2.5, -0.3, 0, Math.PI * 2);
+  ctx.moveTo(x - w*0.5, by - h*0.22);
+  ctx.bezierCurveTo(x - w*0.65, by - h*0.48, x - w*0.5, by - h*0.58, x - w*0.42, by - h*0.5);
+  ctx.bezierCurveTo(x - w*0.52, by - h*0.38, x - w*0.52, by - h*0.28, x - w*0.5, by - h*0.22);
   ctx.fill();
 
-  // Legs - charging pose
-  ctx.fillStyle = '#111';
-  const phase = frame * 0.28 + x * 0.01;
-  const lift = Math.sin(phase) * 5;
-
-  // Front raised leg
+  // Legs
+  const phase = frame * 0.3 + x * 0.01;
+  const la = Math.sin(phase) * 6;
+  // Front raised
   ctx.beginPath();
-  ctx.moveTo(-15, -12);
-  ctx.quadraticCurveTo(-28, 0 + lift, -32, 22);
-  ctx.lineTo(-20, 22);
-  ctx.quadraticCurveTo(-16, 2, -8, -12);
+  ctx.moveTo(x - w*0.15, by + h*0.15);
+  ctx.quadraticCurveTo(x - w*0.3 + la*0.2, by + h*0.28, x - w*0.32 + la*0.3, y);
+  ctx.lineTo(x - w*0.2 + la*0.2, y);
+  ctx.quadraticCurveTo(x - w*0.12, by + h*0.22, x - w*0.08, by + h*0.12);
+  ctx.closePath();
+  ctx.fill();
+  // Other front
+  ctx.beginPath();
+  ctx.moveTo(x + w*0.02, by + h*0.15);
+  ctx.lineTo(x + w*0.0, y);
+  ctx.lineTo(x + w*0.12, y);
+  ctx.lineTo(x + w*0.14, by + h*0.12);
+  ctx.closePath();
+  ctx.fill();
+  // Back
+  ctx.beginPath();
+  ctx.moveTo(x + w*0.22, by + h*0.18);
+  ctx.lineTo(x + w*0.28, y);
+  ctx.lineTo(x + w*0.4, y);
+  ctx.lineTo(x + w*0.38, by + h*0.15);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x + w*0.4, by + h*0.12);
+  ctx.lineTo(x + w*0.48, y);
+  ctx.lineTo(x + w*0.58, y);
+  ctx.lineTo(x + w*0.52, by + h*0.1);
   ctx.closePath();
   ctx.fill();
 
-  // Front standing leg
+  // Tail curl
   ctx.beginPath();
-  ctx.moveTo(0, -10);
-  ctx.lineTo(-2, 24);
-  ctx.lineTo(10, 24);
-  ctx.lineTo(10, -10);
-  ctx.closePath();
+  ctx.moveTo(x + w*0.42, by);
+  ctx.quadraticCurveTo(x + w*0.62, by - h*0.25, x + w*0.52, by - h*0.08);
+  ctx.quadraticCurveTo(x + w*0.68, by + h*0.08, x + w*0.5, by + h*0.1);
+  ctx.quadraticCurveTo(x + w*0.48, by + 0.02*h, x + w*0.42, by);
   ctx.fill();
-
-  // Back legs
-  ctx.beginPath();
-  ctx.moveTo(18, -12);
-  ctx.lineTo(20, 24);
-  ctx.lineTo(32, 24);
-  ctx.lineTo(30, -12);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.moveTo(28, -15);
-  ctx.lineTo(34, 22);
-  ctx.lineTo(45, 22);
-  ctx.lineTo(40, -15);
-  ctx.closePath();
-  ctx.fill();
-
-  // Tail curled
-  ctx.beginPath();
-  ctx.moveTo(32, -28);
-  ctx.quadraticCurveTo(50, -50, 42, -22);
-  ctx.quadraticCurveTo(55, -8, 38, -2);
-  ctx.quadraticCurveTo(35, -18, 32, -28);
-  ctx.fill();
-
-  ctx.restore();
 }
 
 function drawEagle(e) {
   const x = e.x;
   const y = e.y;
   const flap = Math.sin(frame * 0.35 + x * 0.02) * 12;
-
   ctx.fillStyle = '#3d2b1f';
   ctx.beginPath();
   ctx.ellipse(x - 8, y + flap * 0.3, 22, 8 + Math.abs(flap)*0.3, -0.4 + flap*0.02, 0, Math.PI*2);
@@ -548,29 +531,24 @@ function drawEagle(e) {
   ctx.beginPath();
   ctx.ellipse(x + 18, y - flap * 0.3, 22, 8 + Math.abs(flap)*0.3, 0.4 - flap*0.02, 0, Math.PI*2);
   ctx.fill();
-
   ctx.fillStyle = '#2a1c14';
   ctx.beginPath();
   ctx.ellipse(x + 5, y, 18, 10, 0, 0, Math.PI*2);
   ctx.fill();
-
   ctx.fillStyle = '#f5f5f0';
   ctx.beginPath();
   ctx.arc(x - 12, y - 2, 9, 0, Math.PI*2);
   ctx.fill();
-
   ctx.fillStyle = '#e8a020';
   ctx.beginPath();
   ctx.moveTo(x - 20, y - 1);
   ctx.lineTo(x - 28, y + 3);
   ctx.lineTo(x - 18, y + 4);
   ctx.fill();
-
   ctx.fillStyle = '#111';
   ctx.beginPath();
   ctx.arc(x - 14, y - 4, 2, 0, Math.PI*2);
   ctx.fill();
-
   ctx.fillStyle = '#3d2b1f';
   ctx.beginPath();
   ctx.moveTo(x + 18, y);
@@ -586,7 +564,6 @@ function drawUI() {
   ctx.fillText('Score: ' + score, 18, 34);
   ctx.textAlign = 'right';
   ctx.fillText('High: ' + highScore, W - 18, 34);
-
   floatTexts.forEach(t => {
     ctx.globalAlpha = Math.min(1, t.life / 25);
     ctx.fillStyle = t.color;
@@ -595,7 +572,6 @@ function drawUI() {
     ctx.fillText(t.text, t.x, t.y);
     ctx.globalAlpha = 1;
   });
-
   if (state === 'start') {
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(0, 0, W, H);
@@ -614,7 +590,6 @@ function drawUI() {
     ctx.font = 'bold 26px system-ui';
     ctx.fillText('\u00a1Ol\u00e9!', W/2, H/2 + 110);
   }
-
   if (state === 'over') {
     ctx.fillStyle = 'rgba(0,0,0,0.65)';
     ctx.fillRect(0, 0, W, H);
